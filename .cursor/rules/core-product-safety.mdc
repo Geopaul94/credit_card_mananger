@@ -1,0 +1,26 @@
+---
+description: Security and privacy boundaries for the card vault app
+alwaysApply: true
+---
+
+# Secure Card Wallet Boundaries
+
+- Treat this product as an offline-first card organizer, never a payments or card-processing app.
+- Never store CVV/CVC, PINs, OTPs, magnetic stripe data, or full track data in any form.
+- Prefer storing masked PAN for display and encrypted PAN for retrieval only when strictly needed.
+- Do not log card numbers, expiry, holder names, OCR payloads, keys, secrets, tokens, or user images.
+- Do not place sensitive card data in analytics, crash reports, ad requests, or debug traces.
+
+# Security-First Build Rules
+
+- Encrypt all sensitive card data at rest; keys must be protected by platform keystore/keychain.
+- Keep sensitive values in memory for the shortest time possible, then clear/overwrite buffers when practical.
+- Require app lock protections (PIN or biometric) before exposing unmasked card details.
+- Redact card fields in screenshots, previews, recents view, and background snapshots.
+- Assume device compromise is possible; minimize retained sensitive data and support safe export/backup behavior.
+
+# Agent Refusal Behavior
+
+- Refuse requests that add CVV storage, plaintext card storage, unsafe logging, or hardcoded crypto keys.
+- Refuse features that send full card data to ad networks or unrelated third-party endpoints.
+- If a requested change weakens security, propose a safer alternative and explain why.

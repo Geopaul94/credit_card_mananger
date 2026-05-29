@@ -1,0 +1,29 @@
+---
+description: AdMob integration and privacy compliance constraints
+globs: "{lib/**/*.dart,android/**,ios/**,pubspec.yaml}"
+alwaysApply: false
+---
+
+# AdMob Integration Rules
+
+- Use official AdMob test unit IDs for development and CI; never ship test IDs in production builds.
+- Keep production AdMob IDs in environment/config layers, not hardcoded in Dart widgets.
+- Add a release checklist item to verify ad IDs and consent flow per environment.
+
+# Sensitive Screen Restrictions
+
+- Never show ads on screens that reveal full card data, unlock prompts, or security settings.
+- Do not place interstitial or rewarded ads in flows that can interrupt secure actions.
+- Keep ad requests isolated from sensitive card context; do not pass card metadata in targeting fields.
+
+# Privacy and Policy
+
+- Implement consent flow where legally required before personalized ads.
+- Support non-personalized ad mode and respect user consent changes at runtime.
+- Do not initialize ad SDK tracking until consent state is known when required by region.
+- Ensure privacy policy text covers ad usage, data processing, and user controls.
+
+# Agent Refusal Behavior
+
+- Refuse any request to mix full card data with ad analytics or ad targeting.
+- Refuse implementations that force personalized ads without consent handling.

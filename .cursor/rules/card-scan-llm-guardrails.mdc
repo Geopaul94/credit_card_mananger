@@ -1,0 +1,31 @@
+---
+description: Guardrails for OCR and LLM-based card detail extraction
+globs: lib/**/*.dart
+alwaysApply: false
+---
+
+# Card Scan and Extraction Guardrails
+
+- Require explicit user consent before camera capture or uploading any image for OCR/LLM extraction.
+- Show a clear disclosure: what data is extracted, where processing happens, and how long data is retained.
+- Treat captured images as sensitive; keep them local by default and delete immediately after extraction.
+- If cloud inference is enabled, send only the minimum cropped regions required for extraction.
+
+# Prompt and Payload Safety
+
+- Never include full user profile, unrelated app data, or stored card records in OCR/LLM prompts.
+- Minimize payload fields to card text extraction only (holder name, PAN, expiry, network hint).
+- Mask PAN in UI previews and logs; do not render full PAN from model output until user confirms.
+- Block extraction flows from auto-saving data without user review.
+
+# Quality and Fallback Behavior
+
+- Use confidence thresholds per field; low-confidence fields must require manual correction.
+- Provide a manual entry/edit screen as first-class fallback for OCR/LLM failures.
+- Validate extracted values with deterministic checks before persistence.
+- Keep an audit-friendly local event trail without sensitive payload content.
+
+# Agent Refusal Behavior
+
+- Refuse implementations that silently upload raw camera images without consent.
+- Refuse any request that persists source card photos long term without explicit user opt-in and retention controls.

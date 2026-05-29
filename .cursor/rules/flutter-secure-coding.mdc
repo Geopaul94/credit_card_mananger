@@ -1,0 +1,32 @@
+---
+description: Flutter secure coding standards for card vault features
+globs: "{lib/**/*.dart,test/**/*.dart}"
+alwaysApply: false
+---
+
+# Flutter Secure Coding Standards
+
+- Use a layered design: UI -> application/service -> secure storage adapter.
+- Keep crypto and secure storage logic outside widgets; widgets should only consume safe view models.
+- Validate and normalize card input before persistence (length, numeric-only PAN, expiry format, issuer hints).
+- Store only the minimum fields required for app functionality.
+
+# Storage and Key Management
+
+- Use encrypted local storage for card payloads and platform keystore/keychain for key protection.
+- Never hardcode encryption keys, salts, IV seeds, API secrets, or test credentials in source code.
+- Prefer authenticated encryption modes (AEAD) and versioned payload schemas for future migrations.
+- On migration failures, fail closed and preserve encrypted backups instead of writing plaintext fallbacks.
+
+# UI and Interaction Safety
+
+- Default all sensitive card fields to masked values; require explicit reveal actions.
+- Add inactivity timeout auto-lock for sensitive screens.
+- Block copy/share/export for sensitive fields unless user explicitly enables and confirms.
+- Ensure test coverage for lock/unlock flow, masking behavior, and secure storage roundtrip.
+
+# Logging and Error Handling
+
+- Sanitize all exceptions before user display or telemetry emission.
+- Use structured logs without PII; replace sensitive values with fixed placeholders.
+- Security-sensitive failures should return generic user messages and detailed non-sensitive internal diagnostics.
