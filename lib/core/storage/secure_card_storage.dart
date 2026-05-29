@@ -1,0 +1,86 @@
+import 'dart:convert';
+
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../features/cards/data/models/payment_card_model.dart';
+import '../../features/cards/domain/entities/payment_card.dart';
+import '../encryption/encryption_service.dart';
+
+/// Persists cards as an AES-encrypted JSON blob in SharedPreferences.
+class SecureCardStorage {
+  SecureCardStorage(this._encryption, this._prefs);
+
+  final EncryptionService _encryption;
+  final SharedPreferences _prefs;
+
+  static const _cardsKey = 'cv_cards_enc_v1';
+  static const _lastBackupKey = 'cv_last_backup_epoch';
+
+  // ── Card persistence ───────────────────────────────────────────────────────
+
+  Future<void> saveCards(List<PaymentCard> cards) async {
+    final json = jsonEncode(cards.map(_toMap).toList());
+    final encrypted = await _encryption.encryptLocal(json);
+    await _prefs.setString(_cardsKey, encrypted);
+  }
+
+  Future<List<PaymentCard>> loadCards() async {
+    final encrypted = _prefs.getString(_cardsKey);
+    if (encrypted == null || encrypted.isEmpty) return [];
+    try {
+      final json = await _encryption.decryptLocal(encrypted);
+      final list = jsonDecode(json) as List<dynamic>;
+      return list.map((e) => _fromMap(e as Map<String, dynamic>)).toList();
+    } catch (_) {
+      // Corrupt / unreadable data — return empty rather than crash.
+      return [];
+    }
+  }
+
+  // ── Replace all (used by restore) ──────────────────────────────────────────
+
+  Future<void> replaceAll(List<PaymentCard> cards) => saveCards(cards);
+
+  // ── Last backup metadata ───────────────────────────────────────────────────
+
+  DateTime? get lastBackupTime {
+    final epoch = _prefs.getInt(_lastBackupKey);
+    return epoch == null ? null : DateTime.fromMillisecondsSinceEpoch(epoch);
+  }
+
+  Future<void> markBackedUp() =>
+      _prefs.setInt(_lastBackupKey, DateTime.now().millisecondsSinceEpoch);
+
+  /// True when no backup has ever run or the last one was ≥ 7 days ago.
+  bool get needsAutoBackup {
+    final last = lastBackupTime;
+    if (last == null) return true;
+    return DateTime.now().difference(last).inDays >= 7;
+  }
+
+  // ── JSON helpers ───────────────────────────────────────────────────────────
+
+  static Map<String, dynamic> _toMap(PaymentCard c) => {
+        'id': c.id,
+        'holderName': c.holderName,
+        'cardNumber': c.cardNumber,
+        'expiryDate': c.expiryDate,
+        'typeLabel': c.typeLabel,
+        'cvv': c.cvv,
+        if (c.bankName != null) 'bankName': c.bankName,
+        if (c.dueDay != null) 'dueDay': c.dueDay,
+        if (c.notes != null) 'notes': c.notes,
+      };
+
+  static PaymentCard _fromMap(Map<String, dynamic> m) => PaymentCardModel(
+        id: m['id'] as String,
+        holderName: m['holderName'] as String,
+        cardNumber: m['cardNumber'] as String,
+        expiryDate: m['expiryDate'] as String,
+        typeLabel: m['typeLabel'] as String,
+        cvv: m['cvv'] as String,
+        bankName: m['bankName'] as String?,
+        dueDay: m['dueDay'] as int?,
+        notes: m['notes'] as String?,
+      );
+}

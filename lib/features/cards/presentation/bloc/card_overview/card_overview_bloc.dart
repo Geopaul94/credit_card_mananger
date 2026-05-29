@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../../core/backup/backup_cubit.dart';
 import '../../../../../core/notifications/notification_service.dart';
 import '../../../domain/entities/payment_card.dart';
 import '../../../domain/usecases/add_card_use_case.dart';
@@ -15,6 +16,7 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
     this._addCard,
     this._updateCard,
     this._deleteCard,
+    this._backup,
   ) : super(const CardOverviewState()) {
     on<LoadCardsRequested>(_onLoad);
     on<AddCardRequested>(_onAddCard);
@@ -27,6 +29,7 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
   final AddCardUseCase _addCard;
   final UpdateCardUseCase _updateCard;
   final DeleteCardUseCase _deleteCard;
+  final BackupCubit _backup;
   final _notif = NotificationService.instance;
 
   // ── Load ──────────────────────────────────────────────────────────────────
@@ -39,6 +42,8 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
     try {
       final cards = await _getSavedCards();
       emit(state.copyWith(cards: cards, isLoading: false, clearError: true));
+      // Silently auto-backup if ≥ 7 days have passed since the last backup.
+      _backup.autoBackupIfNeeded(cards);
     } catch (_) {
       emit(state.copyWith(
           isLoading: false, errorMessage: 'Unable to load cards.'));

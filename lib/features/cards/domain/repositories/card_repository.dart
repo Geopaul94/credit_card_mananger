@@ -5,4 +5,5 @@ abstract class CardRepository {
   Future<void> addCard(PaymentCard card);
   Future<void> updateCard(PaymentCard card);
   Future<void> deleteCard(String cardId);
+  Future<void> replaceAll(List<PaymentCard> cards);
 }

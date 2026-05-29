@@ -1,8 +1,14 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../auth/auth_cubit.dart';
 import '../auth/biometric_service.dart';
+import '../backup/backup_cubit.dart';
+import '../backup/google_drive_service.dart';
+import '../encryption/encryption_service.dart';
 import '../notifications/notification_service.dart';
+import '../storage/secure_card_storage.dart';
 import '../../features/cards/presentation/bloc/add_card/add_card_cubit.dart';
 import '../../features/cards/data/datasources/local_card_data_source.dart';
 import '../../features/cards/data/repositories/card_repository_impl.dart';
@@ -19,23 +25,44 @@ final sl = GetIt.instance;
 
 Future<void> setupDependencies() async {
   await NotificationService.instance.initialize();
+
+  // ── Platform services ─────────────────────────────────────────────────────
+  const secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+  final prefs = await SharedPreferences.getInstance();
+
+  // ── Encryption & storage ──────────────────────────────────────────────────
   sl
-    ..registerLazySingleton<LocalCardDataSource>(LocalCardDataSourceImpl.new)
+    ..registerLazySingleton<EncryptionService>(
+        () => EncryptionService(secureStorage))
+    ..registerLazySingleton<SecureCardStorage>(
+        () => SecureCardStorage(sl(), prefs))
+
+    // ── Data layer ────────────────────────────────────────────────────────────
+    ..registerLazySingleton<LocalCardDataSource>(
+        () => LocalCardDataSourceImpl(sl()))
     ..registerLazySingleton<CardRepository>(() => CardRepositoryImpl(sl()))
     ..registerLazySingleton<AddCardUseCase>(() => AddCardUseCase(sl()))
     ..registerLazySingleton<UpdateCardUseCase>(() => UpdateCardUseCase(sl()))
     ..registerLazySingleton<DeleteCardUseCase>(() => DeleteCardUseCase(sl()))
     ..registerLazySingleton<GetSavedCardsUseCase>(
-      () => GetSavedCardsUseCase(sl()),
-    )
+        () => GetSavedCardsUseCase(sl()))
+
+    // ── Services ──────────────────────────────────────────────────────────────
     ..registerLazySingleton<BiometricService>(BiometricService.new)
     ..registerLazySingleton<CardScanService>(CardScanService.new)
-    // Auth — singleton so the lock state survives widget rebuilds
+    ..registerLazySingleton<GoogleDriveService>(GoogleDriveService.new)
+
+    // ── Auth — singleton so lock state survives widget rebuilds ───────────────
     ..registerLazySingleton<AuthCubit>(() => AuthCubit(sl()))
-    // AddCard — factory so each screen open gets fresh state
+
+    // ── Backup — singleton so state survives navigation ───────────────────────
+    ..registerLazySingleton<BackupCubit>(
+        () => BackupCubit(sl(), sl(), sl(), sl()))
+
+    // ── Presentation factories ────────────────────────────────────────────────
     ..registerFactory<AddCardCubit>(() => AddCardCubit(sl()))
     ..registerFactory(BottomNavigationBloc.new)
-    ..registerFactory(
-      () => CardOverviewBloc(sl(), sl(), sl(), sl()),
-    );
+    ..registerFactory(() => CardOverviewBloc(sl(), sl(), sl(), sl(), sl()));
 }

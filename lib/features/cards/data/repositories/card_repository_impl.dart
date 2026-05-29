@@ -22,4 +22,8 @@ class CardRepositoryImpl implements CardRepository {
   @override
   Future<void> deleteCard(String cardId) =>
       _localDataSource.deleteCard(cardId);
+
+  @override
+  Future<void> replaceAll(List<PaymentCard> cards) =>
+      _localDataSource.replaceAll(cards);
 }

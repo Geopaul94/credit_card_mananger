@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../../core/backup/backup_cubit.dart';
 import '../../../../../core/theme/theme_cubit.dart';
 import '../../../../../core/ui/responsive_layout.dart';
+import '../../../../../features/backup/presentation/backup_screen.dart';
+import '../../bloc/card_overview/card_overview_bloc.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -10,49 +13,190 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(title: const Text('Settings')),
       body: ResponsiveContent(
         child: ListView(
           padding: EdgeInsets.all(context.spacing(16)),
           children: [
             const _ProfileHeader(),
             SizedBox(height: context.spacing(14)),
+
+            // ── Appearance ──────────────────────────────────────────────────
+            _sectionLabel(context, 'APPEARANCE'),
+            SizedBox(height: context.spacing(8)),
             const _ThemeModeTile(),
-            SizedBox(height: context.spacing(10)),
+            SizedBox(height: context.spacing(20)),
+
+            // ── Backup ──────────────────────────────────────────────────────
+            _sectionLabel(context, 'BACKUP & RESTORE'),
+            SizedBox(height: context.spacing(8)),
+            _BackupTile(),
+            SizedBox(height: context.spacing(20)),
+
+            // ── Security ────────────────────────────────────────────────────
+            _sectionLabel(context, 'SECURITY'),
+            SizedBox(height: context.spacing(8)),
             _ProfileTile(
-              icon: Icons.security,
+              icon: Icons.fingerprint,
               title: 'App lock',
-              subtitle: 'Biometric or PIN protection',
+              subtitle: 'Biometric or PIN protection on every open',
             ),
-            Divider(height: context.spacing(12)),
+            SizedBox(height: context.spacing(8)),
             _ProfileTile(
-              icon: Icons.remove_red_eye,
-              title: 'Mask card numbers',
-              subtitle: 'Always enabled for safety',
-            ),
-            Divider(height: context.spacing(12)),
-            _ProfileTile(
-              icon: Icons.privacy_tip,
-              title: 'Privacy',
-              subtitle: 'No CVV storage, encrypted local data',
+              icon: Icons.shield_outlined,
+              title: 'Encryption',
+              subtitle: 'All card data is AES-256 encrypted locally',
+              trailing: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                      color: Colors.green.withValues(alpha: 0.3)),
+                ),
+                child: const Text('Active',
+                    style: TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11)),
+              ),
             ),
           ],
         ),
       ),
     );
   }
+
+  Widget _sectionLabel(BuildContext context, String label) {
+    return Text(label,
+        style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+            color: Theme.of(context).colorScheme.primary));
+  }
 }
+
+// ─── Backup tile ──────────────────────────────────────────────────────────────
+
+class _BackupTile extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return BlocBuilder<BackupCubit, BackupState>(
+      builder: (context, state) {
+        final account = state.account;
+        final lastBackup = state.lastDriveBackup;
+
+        String subtitle;
+        if (account == null) {
+          subtitle = 'Tap to connect Google Drive';
+        } else if (lastBackup != null) {
+          final diff = DateTime.now().difference(lastBackup);
+          if (diff.inMinutes < 1) {
+            subtitle = 'Last backup: just now';
+          } else if (diff.inHours < 1) {
+            subtitle = 'Last backup: ${diff.inMinutes}m ago';
+          } else if (diff.inDays < 1) {
+            subtitle = 'Last backup: ${diff.inHours}h ago';
+          } else {
+            subtitle =
+                'Last backup: ${lastBackup.day}/${lastBackup.month}/${lastBackup.year}';
+          }
+        } else {
+          subtitle = 'Signed in as ${account.email} — no backup yet';
+        }
+
+        return GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MultiBlocProvider(
+                providers: [
+                  BlocProvider.value(value: context.read<BackupCubit>()),
+                  BlocProvider.value(
+                      value: context.read<CardOverviewBloc>()),
+                ],
+                child: const BackupScreen(),
+              ),
+            ),
+          ),
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: context.spacing(14),
+              vertical: context.spacing(12),
+            ),
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: BorderRadius.circular(context.spacing(14)),
+              border:
+                  Border.all(color: scheme.outline.withValues(alpha: 0.12)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(children: [
+              Container(
+                width: context.spacing(40),
+                height: context.spacing(40),
+                decoration: BoxDecoration(
+                  color: scheme.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(context.spacing(10)),
+                ),
+                child: Icon(
+                  account != null
+                      ? Icons.cloud_done_outlined
+                      : Icons.cloud_off_outlined,
+                  size: context.spacing(22),
+                  color: account != null ? Colors.green : scheme.primary,
+                ),
+              ),
+              SizedBox(width: context.spacing(12)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Google Drive Backup',
+                        style: TextStyle(
+                            fontSize: context.font(15),
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    Text(subtitle,
+                        style: TextStyle(
+                            fontSize: context.font(12),
+                            color: scheme.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right),
+            ]),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─── Profile tile ─────────────────────────────────────────────────────────────
 
 class _ProfileTile extends StatelessWidget {
   const _ProfileTile({
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.trailing,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +209,8 @@ class _ProfileTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(context.spacing(14)),
-        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.12)),
+        border:
+            Border.all(color: colorScheme.outline.withValues(alpha: 0.12)),
       ),
       child: ListTile(
         contentPadding: EdgeInsets.zero,
@@ -78,13 +223,18 @@ class _ProfileTile extends StatelessWidget {
           ),
           child: Icon(icon, size: context.spacing(20)),
         ),
-        title: Text(title, style: TextStyle(fontSize: context.font(16))),
-        subtitle: Text(subtitle, style: TextStyle(fontSize: context.font(13))),
-        trailing: const Icon(Icons.chevron_right),
+        title: Text(title,
+            style: TextStyle(fontSize: context.font(15),
+                fontWeight: FontWeight.w600)),
+        subtitle: Text(subtitle,
+            style: TextStyle(fontSize: context.font(12))),
+        trailing: trailing ?? const Icon(Icons.chevron_right),
       ),
     );
   }
 }
+
+// ─── Theme tile ───────────────────────────────────────────────────────────────
 
 class _ThemeModeTile extends StatelessWidget {
   const _ThemeModeTile();
@@ -101,22 +251,27 @@ class _ThemeModeTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(context.spacing(14)),
-        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.12)),
+        border:
+            Border.all(color: colorScheme.outline.withValues(alpha: 0.12)),
       ),
       child: SwitchListTile(
         contentPadding: EdgeInsets.zero,
-        title: Text('Dark theme', style: TextStyle(fontSize: context.font(16))),
+        title: Text('Dark theme',
+            style: TextStyle(
+                fontSize: context.font(15), fontWeight: FontWeight.w600)),
         subtitle: Text(
           isDark ? 'Enabled for low-light use' : 'Switch to dark appearance',
-          style: TextStyle(fontSize: context.font(13)),
+          style: TextStyle(fontSize: context.font(12)),
         ),
         secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
         value: isDark,
-        onChanged: (value) => context.read<ThemeCubit>().setDarkMode(value),
+        onChanged: (v) => context.read<ThemeCubit>().setDarkMode(v),
       ),
     );
   }
 }
+
+// ─── Profile header ───────────────────────────────────────────────────────────
 
 class _ProfileHeader extends StatelessWidget {
   const _ProfileHeader();
@@ -143,11 +298,11 @@ class _ProfileHeader extends StatelessWidget {
           SizedBox(width: context.spacing(12)),
           Expanded(
             child: Text(
-              'Security preferences',
+              'Card Vault',
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,
-                fontSize: context.font(18),
+                fontSize: context.font(20),
               ),
             ),
           ),

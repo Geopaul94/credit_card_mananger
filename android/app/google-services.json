@@ -1,0 +1,40 @@
+{
+  "_comment": "REPLACE THIS FILE with your real google-services.json from Google Cloud Console.",
+  "_setup_steps": [
+    "1. Go to https://console.cloud.google.com/",
+    "2. Create a project (or select existing)",
+    "3. Enable Google Drive API",
+    "4. OAuth consent screen → External → add your email as test user",
+    "5. Credentials → Create OAuth client ID → Android",
+    "6. Package name: com.example.credit_cards",
+    "7. SHA-1: run  keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android",
+    "8. Download google-services.json and replace this file"
+  ],
+  "project_info": {
+    "project_number": "000000000000",
+    "project_id": "your-project-id",
+    "storage_bucket": "your-project-id.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
+        "android_client_info": {
+          "package_name": "com.example.credit_cards"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "REPLACE_WITH_YOUR_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

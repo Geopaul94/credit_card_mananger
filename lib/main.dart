@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'core/auth/auth_cubit.dart';
+import 'core/backup/backup_cubit.dart';
 import 'core/di/service_locator.dart';
 import 'core/theme/theme_cubit.dart';
 import 'features/cards/presentation/bloc/bottom_navigation/bottom_navigation_bloc.dart';
@@ -27,6 +28,8 @@ class MyApp extends StatelessWidget {
         BlocProvider(create: (_) => ThemeCubit()),
         // AuthCubit lives at the root — survives navigator pushes
         BlocProvider(create: (_) => sl<AuthCubit>()),
+        // BackupCubit lives at the root so auto-backup can fire after unlock
+        BlocProvider(create: (_) => sl<BackupCubit>()),
       ],
       child: BlocBuilder<ThemeCubit, ThemeMode>(
         builder: (context, themeMode) {
