@@ -5,7 +5,6 @@ import '../../../../../core/ui/responsive_layout.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../bloc/card_overview/card_overview_event.dart';
 import '../../bloc/card_overview/card_overview_state.dart';
-import '../add_card_screen/add_card_screen.dart';
 import '../../widgets/card_tile.dart';
 import '../../widgets/empty_card_view.dart';
 
@@ -17,17 +16,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  Future<void> _openAddCardScreen() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => BlocProvider.value(
-          value: context.read<CardOverviewBloc>(),
-          child: const AddCardScreen(),
-        ),
-      ),
-    );
-  }
-
   @override
   void initState() {
     super.initState();
@@ -39,18 +27,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Cards'),
-        actions: [
-          Padding(
-            padding: EdgeInsets.only(right: context.spacing(16)),
-            child: IconButton.filledTonal(
-              onPressed: _openAddCardScreen,
-              style: IconButton.styleFrom(
-                backgroundColor: Colors.blue.withValues(alpha: 0.12),
-              ),
-              icon: const Icon(Icons.add, color: Colors.blue),
-            ),
-          ),
-        ],
       ),
       body: BlocBuilder<CardOverviewBloc, CardOverviewState>(
         builder: (context, state) {

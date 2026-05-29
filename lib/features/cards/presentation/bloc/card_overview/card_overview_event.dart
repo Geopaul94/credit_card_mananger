@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../domain/entities/payment_card.dart';
+
 abstract class CardOverviewEvent extends Equatable {
   const CardOverviewEvent();
   @override
@@ -32,6 +34,24 @@ class AddCardRequested extends CardOverviewEvent {
   @override
   List<Object?> get props =>
       [holderName, cardNumber, expiryDate, typeLabel, cvv, bankName, dueDay];
+}
+
+/// Update an existing card (notes, due date, etc.)
+class UpdateCardRequested extends CardOverviewEvent {
+  const UpdateCardRequested({required this.card});
+  final PaymentCard card;
+
+  @override
+  List<Object?> get props => [card];
+}
+
+/// Permanently remove a card.
+class DeleteCardRequested extends CardOverviewEvent {
+  const DeleteCardRequested({required this.cardId});
+  final String cardId;
+
+  @override
+  List<Object?> get props => [cardId];
 }
 
 /// Fired when user marks a card's bill as paid for the current cycle.

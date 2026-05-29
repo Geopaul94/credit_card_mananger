@@ -12,18 +12,14 @@ class CardRepositoryImpl implements CardRepository {
   Future<List<PaymentCard>> getSavedCards() => _localDataSource.getCards();
 
   @override
-  Future<void> addCard(PaymentCard card) {
-    return _localDataSource.addCard(
-      PaymentCardModel(
-        id: card.id,
-        holderName: card.holderName,
-        cardNumber: card.cardNumber,
-        expiryDate: card.expiryDate,
-        typeLabel: card.typeLabel,
-        cvv: card.cvv,
-        bankName: card.bankName,
-        dueDay: card.dueDay,
-      ),
-    );
-  }
+  Future<void> addCard(PaymentCard card) =>
+      _localDataSource.addCard(PaymentCardModel.fromEntity(card));
+
+  @override
+  Future<void> updateCard(PaymentCard card) =>
+      _localDataSource.updateCard(PaymentCardModel.fromEntity(card));
+
+  @override
+  Future<void> deleteCard(String cardId) =>
+      _localDataSource.deleteCard(cardId);
 }

@@ -3,6 +3,8 @@ import '../models/payment_card_model.dart';
 abstract class LocalCardDataSource {
   Future<List<PaymentCardModel>> getCards();
   Future<void> addCard(PaymentCardModel card);
+  Future<void> updateCard(PaymentCardModel card);
+  Future<void> deleteCard(String cardId);
 }
 
 class LocalCardDataSourceImpl implements LocalCardDataSource {
@@ -45,4 +47,14 @@ class LocalCardDataSourceImpl implements LocalCardDataSource {
   @override
   Future<void> addCard(PaymentCardModel card) async =>
       _cards.insert(0, card);
+
+  @override
+  Future<void> updateCard(PaymentCardModel card) async {
+    final idx = _cards.indexWhere((c) => c.id == card.id);
+    if (idx != -1) _cards[idx] = card;
+  }
+
+  @override
+  Future<void> deleteCard(String cardId) async =>
+      _cards.removeWhere((c) => c.id == cardId);
 }

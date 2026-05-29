@@ -9,7 +9,8 @@ class PaymentCard extends Equatable {
     required this.typeLabel,
     required this.cvv,
     this.bankName,
-    this.dueDay, // day of month the bill is due (1-31)
+    this.dueDay,
+    this.notes,
   });
 
   final String id;
@@ -20,6 +21,7 @@ class PaymentCard extends Equatable {
   final String cvv;
   final String? bankName;
   final int? dueDay; // monthly due date — null means no reminder set
+  final String? notes; // free-text notes (bank login, reminders, etc.)
 
   /// 4532 1234 5678 9012
   String get formattedNumber {
@@ -47,7 +49,7 @@ class PaymentCard extends Equatable {
     return '$d$suffix';
   }
 
-  /// Days until the next due date (negative = overdue)
+  /// Days until the next due date (0 = today, negative = overdue)
   int? get daysUntilDue {
     if (dueDay == null) return null;
     final now = DateTime.now();
@@ -58,7 +60,34 @@ class PaymentCard extends Equatable {
     return due.difference(DateTime(now.year, now.month, now.day)).inDays;
   }
 
+  PaymentCard copyWith({
+    String? id,
+    String? holderName,
+    String? cardNumber,
+    String? expiryDate,
+    String? typeLabel,
+    String? cvv,
+    String? bankName,
+    bool clearBankName = false,
+    int? dueDay,
+    bool clearDueDay = false,
+    String? notes,
+    bool clearNotes = false,
+  }) {
+    return PaymentCard(
+      id: id ?? this.id,
+      holderName: holderName ?? this.holderName,
+      cardNumber: cardNumber ?? this.cardNumber,
+      expiryDate: expiryDate ?? this.expiryDate,
+      typeLabel: typeLabel ?? this.typeLabel,
+      cvv: cvv ?? this.cvv,
+      bankName: clearBankName ? null : (bankName ?? this.bankName),
+      dueDay: clearDueDay ? null : (dueDay ?? this.dueDay),
+      notes: clearNotes ? null : (notes ?? this.notes),
+    );
+  }
+
   @override
   List<Object?> get props =>
-      [id, holderName, cardNumber, expiryDate, typeLabel, cvv, bankName, dueDay];
+      [id, holderName, cardNumber, expiryDate, typeLabel, cvv, bankName, dueDay, notes];
 }

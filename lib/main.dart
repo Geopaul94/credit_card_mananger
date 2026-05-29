@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'core/auth/auth_cubit.dart';
 import 'core/di/service_locator.dart';
 import 'core/theme/theme_cubit.dart';
 import 'features/cards/presentation/bloc/bottom_navigation/bottom_navigation_bloc.dart';
@@ -14,71 +15,64 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
+// ─── Root app ─────────────────────────────────────────────────────────────────
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => ThemeCubit(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (_) => ThemeCubit()),
+        // AuthCubit lives at the root — survives navigator pushes
+        BlocProvider(create: (_) => sl<AuthCubit>()),
+      ],
       child: BlocBuilder<ThemeCubit, ThemeMode>(
         builder: (context, themeMode) {
           return MaterialApp(
             title: 'Card Vault',
+            debugShowCheckedModeBanner: false,
             themeMode: themeMode,
-            theme: ThemeData(
-              useMaterial3: true,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: const Color(0xFF3B82F6),
-                brightness: Brightness.light,
-              ),
-              scaffoldBackgroundColor: const Color(0xFFF3F6FF),
-              appBarTheme: const AppBarTheme(
-                centerTitle: false,
-                backgroundColor: Colors.transparent,
-                foregroundColor: Color(0xFF0F172A),
-                elevation: 0,
-                scrolledUnderElevation: 0,
-              ),
-              cardTheme: CardThemeData(
-                color: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-            ),
-            darkTheme: ThemeData(
-              useMaterial3: true,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: const Color(0xFF3B82F6),
-                brightness: Brightness.dark,
-              ),
-              scaffoldBackgroundColor: const Color(0xFF0B1220),
-              appBarTheme: const AppBarTheme(
-                centerTitle: false,
-                backgroundColor: Colors.transparent,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                scrolledUnderElevation: 0,
-              ),
-              cardTheme: CardThemeData(
-                color: const Color(0xFF111A2E),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-            ),
+            theme: _buildTheme(Brightness.light),
+            darkTheme: _buildTheme(Brightness.dark),
             home: const _AppGate(),
           );
         },
       ),
     );
   }
+
+  ThemeData _buildTheme(Brightness brightness) {
+    final isLight = brightness == Brightness.light;
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: const Color(0xFF3B82F6),
+        brightness: brightness,
+      ),
+      scaffoldBackgroundColor:
+          isLight ? const Color(0xFFF3F6FF) : const Color(0xFF0B1220),
+      appBarTheme: AppBarTheme(
+        centerTitle: false,
+        backgroundColor: Colors.transparent,
+        foregroundColor: isLight ? const Color(0xFF0F172A) : Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+      ),
+      cardTheme: CardThemeData(
+        color: isLight ? Colors.white : const Color(0xFF111A2E),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+      ),
+    );
+  }
 }
 
-/// Handles biometric lock. Re-locks when app goes to background.
+// ─── App gate — shows lock or main shell based on AuthCubit ──────────────────
+
 class _AppGate extends StatefulWidget {
   const _AppGate();
 
@@ -87,8 +81,6 @@ class _AppGate extends StatefulWidget {
 }
 
 class _AppGateState extends State<_AppGate> with WidgetsBindingObserver {
-  bool _isUnlocked = false;
-
   @override
   void initState() {
     super.initState();
@@ -101,27 +93,39 @@ class _AppGateState extends State<_AppGate> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// Re-lock whenever the app moves to background.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
-      setState(() => _isUnlocked = false);
+      context.read<AuthCubit>().lock();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isUnlocked) {
-      return LockScreen(onUnlocked: () => setState(() => _isUnlocked = true));
-    }
+    return BlocBuilder<AuthCubit, AuthState>(
+      // Only rebuild when the authenticated flag actually flips —
+      // avoids spurious rebuilds while the spinner shows.
+      buildWhen: (prev, curr) => prev.isAuthenticated != curr.isAuthenticated,
+      builder: (context, authState) {
+        if (authState.isAuthenticated) return const _MainShell();
+        return const LockScreen();
+      },
+    );
+  }
+}
 
+// ─── Main shell — provides card BLoCs ────────────────────────────────────────
+
+class _MainShell extends StatelessWidget {
+  const _MainShell();
+
+  @override
+  Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider<BottomNavigationBloc>(
-          create: (_) => sl<BottomNavigationBloc>(),
-        ),
-        BlocProvider<CardOverviewBloc>(
-          create: (_) => sl<CardOverviewBloc>(),
-        ),
+        BlocProvider(create: (_) => sl<BottomNavigationBloc>()),
+        BlocProvider(create: (_) => sl<CardOverviewBloc>()),
       ],
       child: const BottomNavigationBarWidget(),
     );

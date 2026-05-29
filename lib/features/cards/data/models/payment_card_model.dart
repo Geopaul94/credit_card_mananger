@@ -10,5 +10,18 @@ class PaymentCardModel extends PaymentCard {
     required super.cvv,
     super.bankName,
     super.dueDay,
+    super.notes,
   });
+
+  factory PaymentCardModel.fromEntity(PaymentCard card) => PaymentCardModel(
+        id: card.id,
+        holderName: card.holderName,
+        cardNumber: card.cardNumber,
+        expiryDate: card.expiryDate,
+        typeLabel: card.typeLabel,
+        cvv: card.cvv,
+        bankName: card.bankName,
+        dueDay: card.dueDay,
+        notes: card.notes,
+      );
 }

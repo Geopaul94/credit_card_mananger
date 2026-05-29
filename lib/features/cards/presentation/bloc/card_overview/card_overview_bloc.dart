@@ -3,20 +3,30 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../core/notifications/notification_service.dart';
 import '../../../domain/entities/payment_card.dart';
 import '../../../domain/usecases/add_card_use_case.dart';
+import '../../../domain/usecases/delete_card_use_case.dart';
 import '../../../domain/usecases/get_saved_cards_use_case.dart';
+import '../../../domain/usecases/update_card_use_case.dart';
 import 'card_overview_event.dart';
 import 'card_overview_state.dart';
 
 class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
-  CardOverviewBloc(this._getSavedCards, this._addCard)
-      : super(const CardOverviewState()) {
+  CardOverviewBloc(
+    this._getSavedCards,
+    this._addCard,
+    this._updateCard,
+    this._deleteCard,
+  ) : super(const CardOverviewState()) {
     on<LoadCardsRequested>(_onLoad);
     on<AddCardRequested>(_onAddCard);
+    on<UpdateCardRequested>(_onUpdateCard);
+    on<DeleteCardRequested>(_onDeleteCard);
     on<MarkCardPaidRequested>(_onMarkPaid);
   }
 
   final GetSavedCardsUseCase _getSavedCards;
   final AddCardUseCase _addCard;
+  final UpdateCardUseCase _updateCard;
+  final DeleteCardUseCase _deleteCard;
   final _notif = NotificationService.instance;
 
   // ── Load ──────────────────────────────────────────────────────────────────
@@ -30,7 +40,8 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
       final cards = await _getSavedCards();
       emit(state.copyWith(cards: cards, isLoading: false, clearError: true));
     } catch (_) {
-      emit(state.copyWith(isLoading: false, errorMessage: 'Unable to load cards.'));
+      emit(state.copyWith(
+          isLoading: false, errorMessage: 'Unable to load cards.'));
     }
   }
 
@@ -48,7 +59,9 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
         expiryDate: event.expiryDate.trim(),
         typeLabel: event.typeLabel.trim(),
         cvv: event.cvv.trim(),
-        bankName: (event.bankName?.trim().isEmpty ?? true) ? null : event.bankName!.trim(),
+        bankName: (event.bankName?.trim().isEmpty ?? true)
+            ? null
+            : event.bankName!.trim(),
         dueDay: event.dueDay,
       );
 
@@ -62,13 +75,55 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
     }
   }
 
+  // ── Update card ───────────────────────────────────────────────────────────
+
+  Future<void> _onUpdateCard(
+    UpdateCardRequested event,
+    Emitter<CardOverviewState> emit,
+  ) async {
+    try {
+      await _updateCard(event.card);
+
+      // Reschedule notifications if due day changed.
+      final old = state.cards.firstWhere((c) => c.id == event.card.id,
+          orElse: () => event.card);
+      if (old.dueDay != event.card.dueDay) {
+        await _notif.scheduleCardReminders(event.card);
+      }
+
+      final cards = await _getSavedCards();
+      emit(state.copyWith(cards: cards, clearError: true));
+    } catch (_) {
+      emit(state.copyWith(errorMessage: 'Unable to update card.'));
+    }
+  }
+
+  // ── Delete card ───────────────────────────────────────────────────────────
+
+  Future<void> _onDeleteCard(
+    DeleteCardRequested event,
+    Emitter<CardOverviewState> emit,
+  ) async {
+    try {
+      await _deleteCard(event.cardId);
+      final cards = await _getSavedCards();
+
+      // Remove from paid set too.
+      final paid = Set<String>.from(state.paidCardIds)..remove(event.cardId);
+      emit(state.copyWith(cards: cards, paidCardIds: paid, clearError: true));
+    } catch (_) {
+      emit(state.copyWith(errorMessage: 'Unable to delete card.'));
+    }
+  }
+
   // ── Mark paid ─────────────────────────────────────────────────────────────
 
   Future<void> _onMarkPaid(
     MarkCardPaidRequested event,
     Emitter<CardOverviewState> emit,
   ) async {
-    final card = state.cards.where((c) => c.id == event.cardId).firstOrNull;
+    final card =
+        state.cards.where((c) => c.id == event.cardId).firstOrNull;
     if (card == null) return;
 
     await _notif.rescheduleForNextMonth(card);
