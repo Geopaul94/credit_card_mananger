@@ -1,6 +1,7 @@
 import 'package:get_it/get_it.dart';
 
 import '../auth/biometric_service.dart';
+import '../notifications/notification_service.dart';
 import '../../features/cards/data/datasources/local_card_data_source.dart';
 import '../../features/cards/data/repositories/card_repository_impl.dart';
 import '../../features/cards/data/services/card_scan_service.dart';
@@ -13,6 +14,7 @@ import '../../features/cards/presentation/bloc/card_overview/card_overview_bloc.
 final sl = GetIt.instance;
 
 Future<void> setupDependencies() async {
+  await NotificationService.instance.initialize();
   sl
     ..registerLazySingleton<LocalCardDataSource>(LocalCardDataSourceImpl.new)
     ..registerLazySingleton<CardRepository>(() => CardRepositoryImpl(sl()))

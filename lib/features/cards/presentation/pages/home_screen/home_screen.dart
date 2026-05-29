@@ -74,7 +74,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 SizedBox(height: context.spacing(14)),
                 const _ProtectionHint(),
                 SizedBox(height: context.spacing(16)),
-                ...state.cards.map((card) => CardTile(card: card)),
+                ...state.cards.map((card) => CardTile(
+                      card: card,
+                      isPaid: state.paidCardIds.contains(card.id),
+                    )),
               ],
             ),
           );

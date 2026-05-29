@@ -22,6 +22,7 @@ class CardRepositoryImpl implements CardRepository {
         typeLabel: card.typeLabel,
         cvv: card.cvv,
         bankName: card.bankName,
+        dueDay: card.dueDay,
       ),
     );
   }

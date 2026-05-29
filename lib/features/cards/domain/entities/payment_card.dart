@@ -9,37 +9,56 @@ class PaymentCard extends Equatable {
     required this.typeLabel,
     required this.cvv,
     this.bankName,
+    this.dueDay, // day of month the bill is due (1-31)
   });
 
   final String id;
   final String holderName;
-
-  /// Full card number, stored as digits only (e.g. "4532123456789012")
-  final String cardNumber;
-  final String expiryDate;
+  final String cardNumber; // digits only
+  final String expiryDate; // MM/YY
   final String typeLabel;
   final String cvv;
   final String? bankName;
+  final int? dueDay; // monthly due date — null means no reminder set
 
-  /// Returns card number formatted as groups: 4532 1234 5678 9012
+  /// 4532 1234 5678 9012
   String get formattedNumber {
-    final digits = cardNumber.replaceAll(RegExp(r'\D'), '');
-    final buffer = StringBuffer();
-    for (int i = 0; i < digits.length; i++) {
-      if (i > 0 && i % 4 == 0) buffer.write(' ');
-      buffer.write(digits[i]);
+    final d = cardNumber.replaceAll(RegExp(r'\D'), '');
+    final buf = StringBuffer();
+    for (int i = 0; i < d.length; i++) {
+      if (i > 0 && i % 4 == 0) buf.write(' ');
+      buf.write(d[i]);
     }
-    return buffer.toString();
+    return buf.toString();
+  }
+
+  /// e.g. "5th", "15th", "21st"
+  String get dueDayLabel {
+    if (dueDay == null) return '';
+    final d = dueDay!;
+    final suffix = (d >= 11 && d <= 13)
+        ? 'th'
+        : switch (d % 10) {
+            1 => 'st',
+            2 => 'nd',
+            3 => 'rd',
+            _ => 'th',
+          };
+    return '$d$suffix';
+  }
+
+  /// Days until the next due date (negative = overdue)
+  int? get daysUntilDue {
+    if (dueDay == null) return null;
+    final now = DateTime.now();
+    var due = DateTime(now.year, now.month, dueDay!);
+    if (due.isBefore(DateTime(now.year, now.month, now.day))) {
+      due = DateTime(now.year, now.month + 1, dueDay!);
+    }
+    return due.difference(DateTime(now.year, now.month, now.day)).inDays;
   }
 
   @override
-  List<Object?> get props => [
-        id,
-        holderName,
-        cardNumber,
-        expiryDate,
-        typeLabel,
-        cvv,
-        bankName,
-      ];
+  List<Object?> get props =>
+      [id, holderName, cardNumber, expiryDate, typeLabel, cvv, bankName, dueDay];
 }

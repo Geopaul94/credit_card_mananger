@@ -9,5 +9,6 @@ class PaymentCardModel extends PaymentCard {
     required super.typeLabel,
     required super.cvv,
     super.bankName,
+    super.dueDay,
   });
 }

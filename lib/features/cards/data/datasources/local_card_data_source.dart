@@ -15,6 +15,7 @@ class LocalCardDataSourceImpl implements LocalCardDataSource {
       typeLabel: 'Credit',
       cvv: '742',
       bankName: 'HDFC Bank',
+      dueDay: 15,
     ),
     const PaymentCardModel(
       id: '2',
@@ -24,6 +25,7 @@ class LocalCardDataSourceImpl implements LocalCardDataSource {
       typeLabel: 'Debit',
       cvv: '318',
       bankName: 'SBI Bank',
+      dueDay: 5,
     ),
     const PaymentCardModel(
       id: '3',

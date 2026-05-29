@@ -2,16 +2,20 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/ui/responsive_layout.dart';
 import '../../domain/entities/payment_card.dart';
+import '../bloc/card_overview/card_overview_bloc.dart';
+import '../bloc/card_overview/card_overview_event.dart';
 
 // ─── Card height constant shared between front and back ───────────────────────
 const double _kCardHeight = 200;
 
 class CardTile extends StatefulWidget {
-  const CardTile({required this.card, super.key});
+  const CardTile({required this.card, this.isPaid = false, super.key});
   final PaymentCard card;
+  final bool isPaid;
 
   @override
   State<CardTile> createState() => _CardTileState();
@@ -110,8 +114,32 @@ class _CardTileState extends State<CardTile>
                       child: _CardBack(
                         card: widget.card,
                         gradientColors: _gradientColors,
+                        isPaid: widget.isPaid,
                         onFlip: _flip,
                         onCopy: _copy,
+                        onMarkPaid: () {
+                          context.read<CardOverviewBloc>().add(
+                            MarkCardPaidRequested(cardId: widget.card.id),
+                          );
+                          ScaffoldMessenger.of(context)
+                            ..clearSnackBars()
+                            ..showSnackBar(SnackBar(
+                              content: Row(children: [
+                                const Icon(Icons.check_circle,
+                                    color: Colors.white, size: 18),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${widget.card.bankName ?? 'Card'} payment marked as paid! '
+                                  'Reminders rescheduled for next month.',
+                                ),
+                              ]),
+                              behavior: SnackBarBehavior.floating,
+                              duration: const Duration(seconds: 3),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ));
+                          _flip(); // flip back to front
+                        },
                       ),
                     ),
             );
@@ -290,14 +318,18 @@ class _CardBack extends StatefulWidget {
   const _CardBack({
     required this.card,
     required this.gradientColors,
+    required this.isPaid,
     required this.onFlip,
     required this.onCopy,
+    required this.onMarkPaid,
   });
 
   final PaymentCard card;
   final List<Color> gradientColors;
+  final bool isPaid;
   final VoidCallback onFlip;
   final void Function(String value, String label) onCopy;
+  final VoidCallback onMarkPaid;
 
   @override
   State<_CardBack> createState() => _CardBackState();
@@ -444,12 +476,46 @@ class _CardBackState extends State<_CardBack> {
 
             const Spacer(),
 
-            // ── Flip-back hint ────────────────────────────────────────────
+            // ── Due date + actions row ────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.only(right: 16, bottom: 10),
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  // Due date badge
+                  if (card.dueDay != null) ...[
+                    _DueBadge(card: card, isPaid: widget.isPaid),
+                    const SizedBox(width: 8),
+                    // Mark as paid
+                    if (!widget.isPaid)
+                      GestureDetector(
+                        onTap: widget.onMarkPaid,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: Colors.green.withValues(alpha: 0.5)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.check_circle_outline,
+                                  color: Colors.greenAccent, size: 13),
+                              SizedBox(width: 4),
+                              Text('Mark Paid',
+                                  style: TextStyle(
+                                      color: Colors.greenAccent,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                  const Spacer(),
+                  // Flip back
                   GestureDetector(
                     onTap: widget.onFlip,
                     child: Container(
@@ -459,22 +525,18 @@ class _CardBackState extends State<_CardBack> {
                         color: Colors.white.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.3),
-                        ),
+                            color: Colors.white.withValues(alpha: 0.3)),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.flip, color: Colors.white70, size: 13),
                           SizedBox(width: 5),
-                          Text(
-                            'flip back',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
+                          Text('flip back',
+                              style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500)),
                         ],
                       ),
                     ),
@@ -612,6 +674,82 @@ class _ChipIcon extends StatelessWidget {
         ),
       ),
       child: CustomPaint(painter: _ChipPainter()),
+    );
+  }
+}
+
+// ─── Due date badge shown on card back ────────────────────────────────────────
+
+class _DueBadge extends StatelessWidget {
+  const _DueBadge({required this.card, required this.isPaid});
+  final PaymentCard card;
+  final bool isPaid;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isPaid) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.green.withValues(alpha: 0.25),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.green.withValues(alpha: 0.5)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.check_circle, color: Colors.greenAccent, size: 13),
+            SizedBox(width: 4),
+            Text('Paid ✓',
+                style: TextStyle(
+                    color: Colors.greenAccent,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700)),
+          ],
+        ),
+      );
+    }
+
+    final days = card.daysUntilDue;
+    final Color badgeColor;
+    final String label;
+
+    if (days == null) {
+      return const SizedBox.shrink();
+    } else if (days == 0) {
+      badgeColor = Colors.red;
+      label = 'Due TODAY — ${card.dueDayLabel}';
+    } else if (days <= 3) {
+      badgeColor = Colors.orange;
+      label = 'Due in $days day${days == 1 ? '' : 's'} (${card.dueDayLabel})';
+    } else {
+      badgeColor = Colors.white.withValues(alpha: 0.7);
+      label = 'Due ${card.dueDayLabel} every month';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: badgeColor.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: badgeColor.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            days == 0 ? Icons.warning_amber_rounded : Icons.calendar_today_outlined,
+            color: badgeColor,
+            size: 12,
+          ),
+          const SizedBox(width: 4),
+          Text(label,
+              style: TextStyle(
+                  color: badgeColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600)),
+        ],
+      ),
     );
   }
 }
