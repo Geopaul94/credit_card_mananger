@@ -62,3 +62,12 @@ class MarkCardPaidRequested extends CardOverviewEvent {
   @override
   List<Object?> get props => [cardId];
 }
+
+/// Fired when user reverts a card's bill back to unpaid for the current cycle.
+class MarkCardUnpaidRequested extends CardOverviewEvent {
+  const MarkCardUnpaidRequested({required this.cardId});
+  final String cardId;
+
+  @override
+  List<Object?> get props => [cardId];
+}

@@ -41,72 +41,71 @@ class NotificationService {
 
   // ── Schedule reminders for a card ─────────────────────────────────────────
 
+  // Reminder window: from 3 days before through 1 day after the due date.
+  // Positive = days before due, negative = days after (overdue).
+  static const _reminderOffsets = <int>[3, 2, 1, 0, -1];
+
   Future<void> scheduleCardReminders(PaymentCard card) async {
     if (card.dueDay == null) return;
     await cancelCardReminders(card.id); // clear any stale ones first
-
-    final nextDue = _nextDueDate(card.dueDay!);
-    final name = card.bankName ?? '${card.typeLabel} Card';
-
-    // Schedule for 3, 2, 1 days before and on the due date
-    final schedule = {
-      3: 'due in 3 days',
-      2: 'due in 2 days',
-      1: 'due tomorrow',
-      0: 'due TODAY',
-    };
-
-    for (final entry in schedule.entries) {
-      final notifDate = nextDue.subtract(Duration(days: entry.key));
-      final notifAt = DateTime(
-          notifDate.year, notifDate.month, notifDate.day, 9, 0);
-
-      if (notifAt.isAfter(DateTime.now())) {
-        await _schedule(
-          id: _notifId(card.id, entry.key),
-          title: '💳 $name payment ${entry.value}',
-          body: entry.key == 0
-              ? 'Your $name bill is due today. Tap to mark as paid.'
-              : 'Your $name bill is ${entry.value}. Due on ${card.dueDayLabel} of this month.',
-          scheduledAt: notifAt,
-        );
-      }
-    }
+    await _scheduleAround(card, _nextDueDate(card.dueDay!));
   }
 
-  /// Cancel current-month reminders and reschedule for next month.
+  /// Cancel current-cycle reminders and reschedule for next month — used when
+  /// the user marks a card paid, so they aren't nudged again this cycle.
   Future<void> rescheduleForNextMonth(PaymentCard card) async {
     if (card.dueDay == null) return;
     await cancelCardReminders(card.id);
-
-    // Force next month by pushing dueDay past current month
     final now = DateTime.now();
-    final forcedNextDue = DateTime(
-        now.year, now.month + 1, _clampDay(now.year, now.month + 1, card.dueDay!));
+    final forcedNextDue = DateTime(now.year, now.month + 1,
+        _clampDay(now.year, now.month + 1, card.dueDay!));
+    await _scheduleAround(card, forcedNextDue);
+  }
+
+  /// Schedules the full reminder window around a concrete [dueDate].
+  Future<void> _scheduleAround(PaymentCard card, DateTime dueDate) async {
     final name = card.bankName ?? '${card.typeLabel} Card';
-
-    final schedule = {3: 'due in 3 days', 2: 'due in 2 days', 1: 'due tomorrow', 0: 'due TODAY'};
-
-    for (final entry in schedule.entries) {
-      final notifDate = forcedNextDue.subtract(Duration(days: entry.key));
-      final notifAt = DateTime(
-          notifDate.year, notifDate.month, notifDate.day, 9, 0);
+    for (int i = 0; i < _reminderOffsets.length; i++) {
+      final offset = _reminderOffsets[i];
+      // [offset] days BEFORE the due date (a negative offset ⇒ after it).
+      final notifDate = dueDate.subtract(Duration(days: offset));
+      final notifAt =
+          DateTime(notifDate.year, notifDate.month, notifDate.day, 9, 0);
 
       if (notifAt.isAfter(DateTime.now())) {
         await _schedule(
-          id: _notifId(card.id, entry.key),
-          title: '💳 $name payment ${entry.value}',
-          body: entry.key == 0
-              ? 'Your $name bill is due today. Tap to mark as paid.'
-              : 'Your $name bill is ${entry.value}. Due on ${card.dueDayLabel}.',
+          id: _notifId(card.id, i),
+          title: offset < 0
+              ? '⚠️ $name payment overdue'
+              : '💳 $name payment ${_offsetLabel(offset)}',
+          body: _body(name, offset, card.dueDayLabel),
           scheduledAt: notifAt,
         );
       }
     }
   }
 
+  String _offsetLabel(int offset) => switch (offset) {
+        3 => 'due in 3 days',
+        2 => 'due in 2 days',
+        1 => 'due tomorrow',
+        0 => 'due TODAY',
+        _ => 'overdue',
+      };
+
+  String _body(String name, int offset, String dueLabel) {
+    if (offset == 0) {
+      return 'Your $name bill is due today. Tap to mark as paid.';
+    }
+    if (offset < 0) {
+      return 'Your $name bill was due on the $dueLabel and is now overdue. '
+          'Tap to mark as paid.';
+    }
+    return 'Your $name bill is ${_offsetLabel(offset)}. Due on the $dueLabel.';
+  }
+
   Future<void> cancelCardReminders(String cardId) async {
-    for (int i = 0; i <= 3; i++) {
+    for (int i = 0; i < _reminderOffsets.length; i++) {
       await _plugin.cancel(_notifId(cardId, i));
     }
   }

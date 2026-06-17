@@ -84,63 +84,53 @@ class _FloatingNavBar extends StatelessWidget {
         MediaQuery.of(context).padding.bottom + 12,
       ),
       child: Container(
-        height: 68,
+        height: 66,
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1A2540) : Colors.white,
-          borderRadius: BorderRadius.circular(34),
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: scheme.outline.withValues(alpha: 0.12)),
           boxShadow: [
             BoxShadow(
-              color: scheme.primary.withValues(alpha: isDark ? 0.25 : 0.12),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: (isDark ? Colors.black : const Color(0xFF1E293B))
+                  .withValues(alpha: isDark ? 0.4 : 0.1),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
+        // Four equal slots — Home · Reminders · Add · Profile — so everything
+        // is evenly spaced with no dead gap on the right.
         child: Row(
           children: [
-            // ── Left tabs: Home + Reminders ─────────────────────────
             Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _NavItem(
-                    data: _tabs[0],
-                    isSelected: currentIndex == 0,
-                    onTap: () => onTabTap(0),
-                    scheme: scheme,
-                  ),
-                  _NavItem(
-                    data: _tabs[1],
-                    isSelected: currentIndex == 1,
-                    onTap: () => onTabTap(1),
-                    scheme: scheme,
-                  ),
-                ],
+              child: Center(
+                child: _NavItem(
+                  data: _tabs[0],
+                  isSelected: currentIndex == 0,
+                  onTap: () => onTabTap(0),
+                  scheme: scheme,
+                ),
               ),
             ),
-
-            // ── Center add FAB ──────────────────────────────────────
-            _AddFab(onTap: onAddTap, scheme: scheme),
-
-            // ── Right tab: Profile ───────────────────────────────────
             Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _NavItem(
-                    data: _tabs[2],
-                    isSelected: currentIndex == 2,
-                    onTap: () => onTabTap(2),
-                    scheme: scheme,
-                  ),
-                  // Invisible spacer to mirror left side's two-item layout
-                  const SizedBox(width: 48),
-                ],
+              child: Center(
+                child: _NavItem(
+                  data: _tabs[1],
+                  isSelected: currentIndex == 1,
+                  onTap: () => onTabTap(1),
+                  scheme: scheme,
+                ),
+              ),
+            ),
+            Expanded(child: Center(child: _AddFab(onTap: onAddTap, scheme: scheme))),
+            Expanded(
+              child: Center(
+                child: _NavItem(
+                  data: _tabs[2],
+                  isSelected: currentIndex == 2,
+                  onTap: () => onTabTap(2),
+                  scheme: scheme,
+                ),
               ),
             ),
           ],
@@ -173,7 +163,7 @@ class _NavItem extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
           color: isSelected
               ? scheme.primary.withValues(alpha: 0.12)
@@ -203,7 +193,10 @@ class _NavItem extends StatelessWidget {
                     ? scheme.primary
                     : scheme.onSurfaceVariant,
               ),
-              child: Text(data.label),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(data.label, maxLines: 1),
+              ),
             ),
           ],
         ),

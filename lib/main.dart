@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'core/auth/auth_cubit.dart';
 import 'core/backup/backup_cubit.dart';
 import 'core/di/service_locator.dart';
+import 'core/theme/app_theme.dart';
 import 'core/theme/theme_cubit.dart';
 import 'features/cards/presentation/bloc/bottom_navigation/bottom_navigation_bloc.dart';
 import 'features/cards/presentation/bloc/card_overview/card_overview_bloc.dart';
@@ -37,38 +38,11 @@ class MyApp extends StatelessWidget {
             title: 'Card Vault',
             debugShowCheckedModeBanner: false,
             themeMode: themeMode,
-            theme: _buildTheme(Brightness.light),
-            darkTheme: _buildTheme(Brightness.dark),
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
             home: const _AppGate(),
           );
         },
-      ),
-    );
-  }
-
-  ThemeData _buildTheme(Brightness brightness) {
-    final isLight = brightness == Brightness.light;
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF3B82F6),
-        brightness: brightness,
-      ),
-      scaffoldBackgroundColor:
-          isLight ? const Color(0xFFF3F6FF) : const Color(0xFF0B1220),
-      appBarTheme: AppBarTheme(
-        centerTitle: false,
-        backgroundColor: Colors.transparent,
-        foregroundColor: isLight ? const Color(0xFF0F172A) : Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-      ),
-      cardTheme: CardThemeData(
-        color: isLight ? Colors.white : const Color(0xFF111A2E),
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
       ),
     );
   }

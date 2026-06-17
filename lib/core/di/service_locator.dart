@@ -65,7 +65,8 @@ Future<void> setupDependencies() async {
     // ── Presentation factories ────────────────────────────────────────────────
     ..registerFactory<AddCardCubit>(() => AddCardCubit(sl()))
     ..registerFactory(BottomNavigationBloc.new)
-    ..registerFactory(() => CardOverviewBloc(sl(), sl(), sl(), sl(), sl()));
+    ..registerFactory(
+        () => CardOverviewBloc(sl(), sl(), sl(), sl(), sl(), sl()));
 
   // ── First-run demo seed ─────────────────────────────────────────────────────
   // Populate 12 sample cards once so every feature has data to exercise, then

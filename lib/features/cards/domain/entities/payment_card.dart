@@ -49,8 +49,9 @@ class PaymentCard extends Equatable {
     return '$d$suffix';
   }
 
-  /// Days until the next due date (0 = today, negative = overdue)
-  int? get daysUntilDue {
+  /// The next upcoming due date (today or in the future), or null if no due
+  /// day is set. Used as the billing-cycle key for paid tracking.
+  DateTime? get nextDueDate {
     if (dueDay == null) return null;
     final now = DateTime.now();
     // Clamp to month length so day 31 lands on the month's last day
@@ -60,11 +61,47 @@ class PaymentCard extends Equatable {
       return dueDay! > lastDay ? lastDay : dueDay!;
     }
 
+    final today = DateTime(now.year, now.month, now.day);
     var due = DateTime(now.year, now.month, clampDay(now.year, now.month));
-    if (due.isBefore(DateTime(now.year, now.month, now.day))) {
+    if (due.isBefore(today)) {
       due = DateTime(now.year, now.month + 1, clampDay(now.year, now.month + 1));
     }
+    return due;
+  }
+
+  /// Days until the next due date (0 = today, negative = overdue)
+  int? get daysUntilDue {
+    final due = nextDueDate;
+    if (due == null) return null;
+    final now = DateTime.now();
     return due.difference(DateTime(now.year, now.month, now.day)).inDays;
+  }
+
+  /// The due date relevant to reminders, plus how many days away it is.
+  ///
+  /// `delta` is positive when the bill is upcoming (days until due, 0 = today)
+  /// and negative when overdue (days past due). A due date that passed up to one
+  /// day ago is kept as the current cycle (delta -1) so we can still nudge
+  /// "overdue by 1 day"; beyond that the cycle rolls to next month.
+  ({DateTime date, int delta})? get reminderInfo {
+    if (dueDay == null) return null;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    int clampDay(int year, int month) {
+      final lastDay = DateTime(year, month + 1, 0).day;
+      return dueDay! > lastDay ? lastDay : dueDay!;
+    }
+
+    final thisMonthDue =
+        DateTime(now.year, now.month, clampDay(now.year, now.month));
+    if (!thisMonthDue.isBefore(today)) {
+      return (date: thisMonthDue, delta: thisMonthDue.difference(today).inDays);
+    }
+    final overdue = today.difference(thisMonthDue).inDays;
+    if (overdue <= 1) return (date: thisMonthDue, delta: -overdue);
+    final nextDue =
+        DateTime(now.year, now.month + 1, clampDay(now.year, now.month + 1));
+    return (date: nextDue, delta: nextDue.difference(today).inDays);
   }
 
   PaymentCard copyWith({

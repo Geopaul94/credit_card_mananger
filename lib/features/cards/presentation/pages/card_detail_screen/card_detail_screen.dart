@@ -713,7 +713,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: isPaid
-                    ? _PaidSuccessBanner()
+                    ? _PaidSuccessBanner(
+                        onUndo: () => _dispatch(
+                            MarkCardUnpaidRequested(cardId: _card.id)),
+                      )
                     : _SwipeToConfirm(
                         onConfirmed: () {
                           _dispatch(
@@ -904,6 +907,9 @@ class _SwipeToConfirmState extends State<_SwipeToConfirm>
 // ─── Paid success banner ──────────────────────────────────────────────────────
 
 class _PaidSuccessBanner extends StatelessWidget {
+  const _PaidSuccessBanner({required this.onUndo});
+  final VoidCallback onUndo;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -940,6 +946,17 @@ class _PaidSuccessBanner extends StatelessWidget {
                 color: Colors.green.shade700,
                 fontSize: 12),
             textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: onUndo,
+            icon: const Icon(Icons.undo, size: 16),
+            label: const Text('Mark as not paid'),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.green.shade800,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            ),
           ),
         ],
       ),

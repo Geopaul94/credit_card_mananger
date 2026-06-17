@@ -17,6 +17,7 @@ class SecureCardStorage {
   static const _cardsKey = 'cv_cards_enc_v1';
   static const _lastBackupKey = 'cv_last_backup_epoch';
   static const _demoSeededKey = 'cv_demo_seeded_v1';
+  static const _paidKey = 'cv_paid_v1';
 
   // ── First-run demo seed ─────────────────────────────────────────────────────
 
@@ -60,6 +61,32 @@ class SecureCardStorage {
   // ── Replace all (used by restore) ──────────────────────────────────────────
 
   Future<void> replaceAll(List<PaymentCard> cards) => saveCards(cards);
+
+  // ── Paid-status persistence ─────────────────────────────────────────────────
+  // Maps cardId → the due date that payment covers. A card counts as "paid"
+  // while that date is today-or-later; once it passes, the next cycle starts
+  // unpaid. Not encrypted — only card IDs (timestamps) and dates.
+
+  Future<void> savePaidMap(Map<String, DateTime> map) async {
+    if (map.isEmpty) {
+      await _prefs.remove(_paidKey);
+      return;
+    }
+    final encoded =
+        jsonEncode(map.map((k, v) => MapEntry(k, v.toIso8601String())));
+    await _prefs.setString(_paidKey, encoded);
+  }
+
+  Map<String, DateTime> loadPaidMap() {
+    final raw = _prefs.getString(_paidKey);
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      return m.map((k, v) => MapEntry(k, DateTime.parse(v as String)));
+    } catch (_) {
+      return {};
+    }
+  }
 
   // ── Last backup metadata ───────────────────────────────────────────────────
 
