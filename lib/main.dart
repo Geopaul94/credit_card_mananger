@@ -96,10 +96,14 @@ class _AppGateState extends State<_AppGate> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  /// Re-lock whenever the app moves to background.
+  /// Re-lock whenever the app leaves the foreground, so card data is never
+  /// reachable without re-auth. Covers paused/hidden/detached (but not the
+  /// transient `inactive` the iOS biometric sheet itself triggers).
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
       context.read<AuthCubit>().lock();
     }
   }

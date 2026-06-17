@@ -89,15 +89,24 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
     try {
       await _updateCard(event.card);
 
-      // Reschedule notifications if due day changed.
+      // Reschedule (or cancel) reminders when the due day changes, and clear
+      // any stale "paid" flag — a changed/cleared cycle should start unpaid.
       final old = state.cards.firstWhere((c) => c.id == event.card.id,
           orElse: () => event.card);
+      var paid = state.paidCardIds;
       if (old.dueDay != event.card.dueDay) {
-        await _notif.scheduleCardReminders(event.card);
+        if (event.card.dueDay == null) {
+          await _notif.cancelCardReminders(event.card.id);
+        } else {
+          await _notif.scheduleCardReminders(event.card);
+        }
+        if (paid.contains(event.card.id)) {
+          paid = Set<String>.from(paid)..remove(event.card.id);
+        }
       }
 
       final cards = await _getSavedCards();
-      emit(state.copyWith(cards: cards, clearError: true));
+      emit(state.copyWith(cards: cards, paidCardIds: paid, clearError: true));
     } catch (_) {
       emit(state.copyWith(errorMessage: 'Unable to update card.'));
     }
@@ -111,6 +120,8 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
   ) async {
     try {
       await _deleteCard(event.cardId);
+      // Cancel any reminders so a deleted card can't fire orphaned notifications.
+      await _notif.cancelCardReminders(event.cardId);
       final cards = await _getSavedCards();
 
       // Remove from paid set too.
@@ -131,9 +142,15 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
         state.cards.where((c) => c.id == event.cardId).firstOrNull;
     if (card == null) return;
 
-    await _notif.rescheduleForNextMonth(card);
-
+    // Reflect the user's intent first; the reminder reschedule is best-effort
+    // and must not be able to undo the paid mark if it throws.
     final updated = Set<String>.from(state.paidCardIds)..add(event.cardId);
     emit(state.copyWith(paidCardIds: updated));
+
+    try {
+      await _notif.rescheduleForNextMonth(card);
+    } catch (_) {
+      // Notification reschedule is non-critical; ignore failures.
+    }
   }
 }

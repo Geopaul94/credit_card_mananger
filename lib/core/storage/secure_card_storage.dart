@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../features/cards/data/models/payment_card_model.dart';
 import '../../features/cards/domain/entities/payment_card.dart';
 import '../encryption/encryption_service.dart';
+import 'demo_cards.dart';
 
 /// Persists cards as an AES-encrypted JSON blob in SharedPreferences.
 class SecureCardStorage {
@@ -15,6 +16,25 @@ class SecureCardStorage {
 
   static const _cardsKey = 'cv_cards_enc_v1';
   static const _lastBackupKey = 'cv_last_backup_epoch';
+  static const _demoSeededKey = 'cv_demo_seeded_v1';
+
+  // ── First-run demo seed ─────────────────────────────────────────────────────
+
+  /// Seeds [kDemoCards] exactly once, the first time the app runs with an
+  /// empty store. The flag means a user who later deletes every card won't
+  /// have the demo set silently reappear. Returns the cards that were seeded
+  /// (empty if seeding was skipped) so callers can schedule reminders.
+  Future<List<PaymentCard>> seedDemoCardsIfNeeded() async {
+    if (_prefs.getBool(_demoSeededKey) == true) return const [];
+    final existing = await loadCards();
+    if (existing.isNotEmpty) {
+      await _prefs.setBool(_demoSeededKey, true);
+      return const [];
+    }
+    await saveCards(kDemoCards);
+    await _prefs.setBool(_demoSeededKey, true);
+    return kDemoCards;
+  }
 
   // ── Card persistence ───────────────────────────────────────────────────────
 

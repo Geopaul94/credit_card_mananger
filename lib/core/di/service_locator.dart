@@ -51,7 +51,8 @@ Future<void> setupDependencies() async {
 
     // ── Services ──────────────────────────────────────────────────────────────
     ..registerLazySingleton<BiometricService>(BiometricService.new)
-    ..registerLazySingleton<CardScanService>(CardScanService.new)
+    ..registerLazySingleton<CardScanService>(CardScanService.new,
+        dispose: (s) => s.dispose())
     ..registerLazySingleton<GoogleDriveService>(GoogleDriveService.new)
 
     // ── Auth — singleton so lock state survives widget rebuilds ───────────────
@@ -65,4 +66,12 @@ Future<void> setupDependencies() async {
     ..registerFactory<AddCardCubit>(() => AddCardCubit(sl()))
     ..registerFactory(BottomNavigationBloc.new)
     ..registerFactory(() => CardOverviewBloc(sl(), sl(), sl(), sl(), sl()));
+
+  // ── First-run demo seed ─────────────────────────────────────────────────────
+  // Populate 12 sample cards once so every feature has data to exercise, then
+  // schedule reminders for the ones that carry a due day.
+  final seeded = await sl<SecureCardStorage>().seedDemoCardsIfNeeded();
+  for (final card in seeded) {
+    await NotificationService.instance.scheduleCardReminders(card);
+  }
 }

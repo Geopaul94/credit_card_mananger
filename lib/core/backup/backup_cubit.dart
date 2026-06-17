@@ -48,6 +48,7 @@ class BackupState extends Equatable {
     DateTime? lastDriveBackup,
     bool clearDriveTime = false,
     int? restoredCount,
+    bool clearRestoredCount = false,
     String? errorMessage,
     bool clearError = false,
   }) {
@@ -56,7 +57,8 @@ class BackupState extends Equatable {
       account: clearAccount ? null : (account ?? this.account),
       lastDriveBackup:
           clearDriveTime ? null : (lastDriveBackup ?? this.lastDriveBackup),
-      restoredCount: restoredCount ?? this.restoredCount,
+      restoredCount:
+          clearRestoredCount ? null : (restoredCount ?? this.restoredCount),
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }
@@ -143,6 +145,9 @@ class BackupCubit extends Cubit<BackupState> {
       emit(state.copyWith(
         phase: BackupPhase.success,
         lastDriveBackup: driveTime ?? DateTime.now(),
+        // Clear any prior restore count so this backup isn't mislabeled as a
+        // restore by the BlocConsumer listener.
+        clearRestoredCount: true,
       ));
     } catch (e) {
       emit(state.copyWith(
@@ -174,6 +179,9 @@ class BackupCubit extends Cubit<BackupState> {
       }
       final cards = _parsePayload(payload, account.id);
       await _repository.replaceAll(cards);
+      // Reset the auto-backup window so a fresh-device restore doesn't
+      // immediately trigger an auto-backup on the next card load.
+      await _storage.markBackedUp();
       emit(state.copyWith(
         phase: BackupPhase.success,
         restoredCount: cards.length,

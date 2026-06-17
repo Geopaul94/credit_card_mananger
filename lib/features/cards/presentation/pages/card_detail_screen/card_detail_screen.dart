@@ -269,14 +269,13 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               ..rotateY(angle),
             alignment: Alignment.center,
             child: _showFront
-                ? CardFrontFace(
-                    card: _card,
-                    gradientColors: _gradient,
-                    isPaid: context
-                        .read<CardOverviewBloc>()
-                        .state
-                        .paidCardIds
-                        .contains(_card.id),
+                ? BlocSelector<CardOverviewBloc, CardOverviewState, bool>(
+                    selector: (s) => s.paidCardIds.contains(_card.id),
+                    builder: (context, isPaid) => CardFrontFace(
+                      card: _card,
+                      gradientColors: _gradient,
+                      isPaid: isPaid,
+                    ),
                   )
                 : Transform(
                     transform: Matrix4.identity()..rotateY(math.pi),

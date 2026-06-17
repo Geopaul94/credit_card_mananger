@@ -53,9 +53,16 @@ class PaymentCard extends Equatable {
   int? get daysUntilDue {
     if (dueDay == null) return null;
     final now = DateTime.now();
-    var due = DateTime(now.year, now.month, dueDay!);
+    // Clamp to month length so day 31 lands on the month's last day
+    // instead of overflowing into the next month.
+    int clampDay(int year, int month) {
+      final lastDay = DateTime(year, month + 1, 0).day;
+      return dueDay! > lastDay ? lastDay : dueDay!;
+    }
+
+    var due = DateTime(now.year, now.month, clampDay(now.year, now.month));
     if (due.isBefore(DateTime(now.year, now.month, now.day))) {
-      due = DateTime(now.year, now.month + 1, dueDay!);
+      due = DateTime(now.year, now.month + 1, clampDay(now.year, now.month + 1));
     }
     return due.difference(DateTime(now.year, now.month, now.day)).inDays;
   }

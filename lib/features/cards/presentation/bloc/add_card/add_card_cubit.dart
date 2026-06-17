@@ -9,7 +9,6 @@ class AddCardState extends Equatable {
   const AddCardState({
     this.cardType = 'Credit',
     this.selectedDueDay,
-    this.useCustomDay = false,
     this.isScanning = false,
     this.wasScanned = false,
     this.showCvv = false,
@@ -17,21 +16,20 @@ class AddCardState extends Equatable {
   });
 
   final String cardType;
+
+  /// Selected due day-of-month (1–31). null ⇒ no reminder.
   final int? selectedDueDay;
-  final bool useCustomDay;
   final bool isScanning;
   final bool wasScanned;
   final bool showCvv;
-  final CardScanResult? scanResult; // non-null after a successful scan
+  final CardScanResult? scanResult; // accumulates across front/back scans
 
-  /// The effective due day — custom text-field value handled by the widget.
-  int? get effectiveDueDay => useCustomDay ? null : selectedDueDay;
+  int? get effectiveDueDay => selectedDueDay;
 
   AddCardState copyWith({
     String? cardType,
     int? selectedDueDay,
     bool clearDueDay = false,
-    bool? useCustomDay,
     bool? isScanning,
     bool? wasScanned,
     bool? showCvv,
@@ -42,7 +40,6 @@ class AddCardState extends Equatable {
       cardType: cardType ?? this.cardType,
       selectedDueDay:
           clearDueDay ? null : (selectedDueDay ?? this.selectedDueDay),
-      useCustomDay: useCustomDay ?? this.useCustomDay,
       isScanning: isScanning ?? this.isScanning,
       wasScanned: wasScanned ?? this.wasScanned,
       showCvv: showCvv ?? this.showCvv,
@@ -51,15 +48,8 @@ class AddCardState extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
-        cardType,
-        selectedDueDay,
-        useCustomDay,
-        isScanning,
-        wasScanned,
-        showCvv,
-        scanResult,
-      ];
+  List<Object?> get props =>
+      [cardType, selectedDueDay, isScanning, wasScanned, showCvv, scanResult];
 }
 
 // ─── Cubit ────────────────────────────────────────────────────────────────────
@@ -69,42 +59,52 @@ class AddCardCubit extends Cubit<AddCardState> {
 
   final CardScanService _scanService;
 
-  // ── Card type ─────────────────────────────────────────────────────────────
+  // ── Card type ───────────────────────────────────────────────────────────────
 
   void selectType(String type) => emit(state.copyWith(cardType: type));
 
-  // ── Due day ───────────────────────────────────────────────────────────────
+  // ── Due day (null ⇒ no reminder) ──────────────────────────────────────────
 
-  void selectDueDay(int day) =>
-      emit(state.copyWith(selectedDueDay: day, useCustomDay: false));
+  void selectDueDay(int day) => emit(state.copyWith(selectedDueDay: day));
 
-  void enableCustomDay() =>
-      emit(state.copyWith(useCustomDay: true, clearDueDay: true));
-
-  void clearDueDay() =>
-      emit(state.copyWith(clearDueDay: true, useCustomDay: false));
+  void clearDueDay() => emit(state.copyWith(clearDueDay: true));
 
   // ── CVV visibility ────────────────────────────────────────────────────────
 
   void toggleCvv() => emit(state.copyWith(showCvv: !state.showCvv));
 
-  // ── Scan card ─────────────────────────────────────────────────────────────
+  // ── Scan front / back ─────────────────────────────────────────────────────
+  // Each captures one side, OCRs it, and merges the result into [scanResult]
+  // (existing values win; gaps are filled). Returns true if a photo was taken,
+  // false if the user cancelled the camera.
 
-  Future<void> scanCard() async {
-    if (state.isScanning) return;
-    emit(state.copyWith(isScanning: true, clearScan: true));
+  Future<bool> scanFront() => _scan(CardSide.front);
+
+  Future<bool> scanBack() => _scan(CardSide.back);
+
+  Future<bool> _scan(CardSide side) async {
+    if (state.isScanning) return false;
+    emit(state.copyWith(isScanning: true));
     try {
-      final result = await _scanService.scanFromCamera();
-      if (isClosed) return;
-      if (result != null && result.hasAnyField) {
-        emit(state.copyWith(isScanning: false, wasScanned: true, scanResult: result));
-      } else {
+      final result = await _scanService.scanSide(side);
+      if (isClosed) return false;
+      if (result == null) {
         emit(state.copyWith(isScanning: false));
+        return false; // cancelled
       }
+      final merged = state.scanResult?.merge(result) ?? result;
+      emit(state.copyWith(
+        isScanning: false,
+        wasScanned: merged.hasAnyField,
+        scanResult: merged,
+      ));
+      return true;
     } catch (_) {
       if (!isClosed) emit(state.copyWith(isScanning: false));
+      return false;
     }
   }
 
-  void dismissScannedBanner() => emit(state.copyWith(wasScanned: false, clearScan: true));
+  void dismissScannedBanner() =>
+      emit(state.copyWith(wasScanned: false, clearScan: true));
 }

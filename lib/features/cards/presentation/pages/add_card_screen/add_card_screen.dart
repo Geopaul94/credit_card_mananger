@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../../core/auth/auth_cubit.dart';
 import '../../../../../core/di/service_locator.dart';
 import '../../../../../core/ui/responsive_layout.dart';
 import '../../bloc/add_card/add_card_cubit.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../bloc/card_overview/card_overview_event.dart';
-
-// ─── Quick-select due days shown as chips ─────────────────────────────────────
-const _quickDays = [1, 5, 10, 15, 20, 25, 28];
+import '../../widgets/due_date_calendar.dart';
 
 // ─── Route entry-point — provides a fresh AddCardCubit per open ───────────────
 
@@ -42,7 +41,6 @@ class _AddCardViewState extends State<_AddCardView> {
   final _numberCtrl = TextEditingController();
   final _expiryCtrl = TextEditingController();
   final _cvvCtrl = TextEditingController();
-  final _customDayCtrl = TextEditingController();
 
   @override
   void dispose() {
@@ -51,8 +49,54 @@ class _AddCardViewState extends State<_AddCardView> {
     _numberCtrl.dispose();
     _expiryCtrl.dispose();
     _cvvCtrl.dispose();
-    _customDayCtrl.dispose();
     super.dispose();
+  }
+
+  // ── Two-step camera scan: front, then optional back ───────────────────────
+
+  Future<void> _runScanFlow() async {
+    final cubit = context.read<AddCardCubit>();
+    final auth = context.read<AuthCubit>();
+
+    // Opening the camera backgrounds the app; mark this as a trusted
+    // interruption so AuthCubit doesn't force a re-auth when we return.
+    Future<bool> guarded(Future<bool> Function() op) async {
+      auth.beginTrustedInterruption();
+      try {
+        return await op();
+      } finally {
+        auth.endTrustedInterruption();
+      }
+    }
+
+    final gotFront = await guarded(cubit.scanFront);
+    if (!mounted || !gotFront) return;
+
+    final captureBack = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Front captured ✓'),
+        content: const Text(
+          'Now flip the card over and capture the back so we can read the '
+          'CVV. You can skip this and type the CVV yourself.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Skip'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.flip_camera_android_outlined, size: 18),
+            label: const Text('Capture back'),
+          ),
+        ],
+      ),
+    );
+
+    if (captureBack == true && mounted) {
+      await guarded(cubit.scanBack);
+    }
   }
 
   // ── Save ──────────────────────────────────────────────────────────────────
@@ -61,10 +105,6 @@ class _AddCardViewState extends State<_AddCardView> {
     if (!_formKey.currentState!.validate()) return;
 
     final cubit = context.read<AddCardCubit>();
-    int? dueDay = cubit.state.effectiveDueDay;
-    if (cubit.state.useCustomDay) {
-      dueDay = int.tryParse(_customDayCtrl.text.trim());
-    }
 
     context.read<CardOverviewBloc>().add(
           AddCardRequested(
@@ -76,7 +116,7 @@ class _AddCardViewState extends State<_AddCardView> {
             bankName: _bankCtrl.text.trim().isEmpty
                 ? null
                 : _bankCtrl.text.trim(),
-            dueDay: dueDay,
+            dueDay: cubit.state.selectedDueDay,
           ),
         );
     Navigator.of(context).pop();
@@ -95,9 +135,22 @@ class _AddCardViewState extends State<_AddCardView> {
       listener: (context, state) {
         final r = state.scanResult;
         if (r == null) return;
-        if (r.holderName != null) _holderCtrl.text = r.holderName!;
-        if (r.cardNumber != null) _numberCtrl.text = r.cardNumber!;
-        if (r.expiryDate != null) _expiryCtrl.text = r.expiryDate!;
+        // Only fill empty fields so a re-scan never clobbers typed-in values.
+        if (r.bankName != null && _bankCtrl.text.trim().isEmpty) {
+          _bankCtrl.text = r.bankName!;
+        }
+        if (r.holderName != null && _holderCtrl.text.trim().isEmpty) {
+          _holderCtrl.text = r.holderName!;
+        }
+        if (r.cardNumber != null && _numberCtrl.text.trim().isEmpty) {
+          _numberCtrl.text = r.cardNumber!;
+        }
+        if (r.expiryDate != null && _expiryCtrl.text.trim().isEmpty) {
+          _expiryCtrl.text = r.expiryDate!;
+        }
+        if (r.cvv != null && _cvvCtrl.text.trim().isEmpty) {
+          _cvvCtrl.text = r.cvv!;
+        }
       },
       child: Scaffold(
         backgroundColor: scheme.surfaceContainerLowest,
@@ -117,9 +170,7 @@ class _AddCardViewState extends State<_AddCardView> {
                   buildWhen: (p, c) => p.isScanning != c.isScanning,
                   builder: (context, state) => _ScanButton(
                     isScanning: state.isScanning,
-                    onTap: state.isScanning
-                        ? null
-                        : () => context.read<AddCardCubit>().scanCard(),
+                    onTap: state.isScanning ? null : _runScanFlow,
                   ),
                 ),
 
@@ -250,7 +301,7 @@ class _AddCardViewState extends State<_AddCardView> {
                     keyboardType: TextInputType.number,
                     validator: (v) {
                       final d = v?.replaceAll(RegExp(r'\D'), '') ?? '';
-                      return d.length < 12
+                      return (d.length < 12 || d.length > 19)
                           ? 'Enter a valid card number'
                           : null;
                     },
@@ -296,16 +347,14 @@ class _AddCardViewState extends State<_AddCardView> {
                 _SectionLabel(label: 'PAYMENT DUE DATE'),
                 const SizedBox(height: 8),
 
-                // Due day section rebuilds when selection changes.
+                // Rebuilds when the selected due day changes.
                 BlocBuilder<AddCardCubit, AddCardState>(
-                  buildWhen: (p, c) =>
-                      p.selectedDueDay != c.selectedDueDay ||
-                      p.useCustomDay != c.useCustomDay,
+                  buildWhen: (p, c) => p.selectedDueDay != c.selectedDueDay,
                   builder: (context, state) {
                     final cubit = context.read<AddCardCubit>();
                     return _FormCard(children: [
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -313,171 +362,32 @@ class _AddCardViewState extends State<_AddCardView> {
                               Icon(Icons.notifications_outlined,
                                   size: 16, color: scheme.primary),
                               const SizedBox(width: 6),
-                              Text(
-                                'Bill due every month on the…',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                    color: scheme.onSurface),
+                              Expanded(
+                                child: Text(
+                                  state.selectedDueDay != null
+                                      ? 'Reminders on day ${state.selectedDueDay} of every month'
+                                      : 'Pick the day your bill is due',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                      color: scheme.onSurface),
+                                ),
                               ),
                             ]),
                             const SizedBox(height: 4),
                             Text(
-                              'You\'ll get reminders 3 days before, 2 days before, the day before, and on the due date.',
+                              "You'll get reminders 3 days before, 2 days before, the day before, and on the due date.",
                               style: TextStyle(
                                   fontSize: 12,
                                   color: scheme.onSurfaceVariant,
                                   height: 1.4),
                             ),
-                            const SizedBox(height: 14),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                // Quick-select day chips
-                                ..._quickDays.map((day) {
-                                  final sel = !state.useCustomDay &&
-                                      state.selectedDueDay == day;
-                                  return GestureDetector(
-                                    onTap: () => cubit.selectDueDay(day),
-                                    child: AnimatedContainer(
-                                      duration:
-                                          const Duration(milliseconds: 180),
-                                      width: 44,
-                                      height: 44,
-                                      decoration: BoxDecoration(
-                                        color: sel
-                                            ? scheme.primary
-                                            : scheme.surfaceContainerHigh,
-                                        borderRadius:
-                                            BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: sel
-                                              ? scheme.primary
-                                              : scheme.outline
-                                                  .withValues(alpha: 0.2),
-                                        ),
-                                      ),
-                                      alignment: Alignment.center,
-                                      child: Text(
-                                        '$day',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 14,
-                                          color: sel
-                                              ? Colors.white
-                                              : scheme.onSurface,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }),
-
-                                // "Other" custom day chip
-                                GestureDetector(
-                                  onTap: () => cubit.enableCustomDay(),
-                                  child: AnimatedContainer(
-                                    duration:
-                                        const Duration(milliseconds: 180),
-                                    height: 44,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14),
-                                    decoration: BoxDecoration(
-                                      color: state.useCustomDay
-                                          ? scheme.primary
-                                          : scheme.surfaceContainerHigh,
-                                      borderRadius:
-                                          BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: state.useCustomDay
-                                            ? scheme.primary
-                                            : scheme.outline
-                                                .withValues(alpha: 0.2),
-                                      ),
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      'Other',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                        color: state.useCustomDay
-                                            ? Colors.white
-                                            : scheme.onSurface,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-
-                                // "No reminder" chip
-                                GestureDetector(
-                                  onTap: () => cubit.clearDueDay(),
-                                  child: AnimatedContainer(
-                                    duration:
-                                        const Duration(milliseconds: 180),
-                                    height: 44,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14),
-                                    decoration: BoxDecoration(
-                                      color: (!state.useCustomDay &&
-                                              state.selectedDueDay == null)
-                                          ? scheme.errorContainer
-                                          : scheme.surfaceContainerHigh,
-                                      borderRadius:
-                                          BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: (!state.useCustomDay &&
-                                                state.selectedDueDay == null)
-                                            ? scheme.error
-                                            : scheme.outline
-                                                .withValues(alpha: 0.2),
-                                      ),
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      'No reminder',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                        color: (!state.useCustomDay &&
-                                                state.selectedDueDay == null)
-                                            ? scheme.onErrorContainer
-                                            : scheme.onSurface,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            const SizedBox(height: 16),
+                            DueDateCalendar(
+                              selectedDay: state.selectedDueDay,
+                              onSelectDay: cubit.selectDueDay,
+                              onNoReminder: cubit.clearDueDay,
                             ),
-
-                            // Custom day text input
-                            if (state.useCustomDay) ...[
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _customDayCtrl,
-                                keyboardType: TextInputType.number,
-                                decoration: InputDecoration(
-                                  labelText: 'Enter day (1–31)',
-                                  prefixIcon: const Icon(
-                                      Icons.calendar_today_outlined),
-                                  border: OutlineInputBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(12)),
-                                  contentPadding:
-                                      const EdgeInsets.symmetric(
-                                          horizontal: 16, vertical: 12),
-                                ),
-                                validator: (v) {
-                                  final d =
-                                      int.tryParse(v?.trim() ?? '');
-                                  if (d == null || d < 1 || d > 31) {
-                                    return 'Enter a day between 1 and 31';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ],
-                            const SizedBox(height: 14),
                           ],
                         ),
                       ),
@@ -697,7 +607,7 @@ class _ScanButton extends StatelessWidget {
                   color: scheme.primary, size: 20),
             const SizedBox(width: 10),
             Text(
-              isScanning ? 'Scanning card…' : 'Scan Card with Camera',
+              isScanning ? 'Reading card…' : 'Scan Card (front & back)',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 color: scheme.primary,

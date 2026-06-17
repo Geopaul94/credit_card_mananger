@@ -81,7 +81,8 @@ class NotificationService {
 
     // Force next month by pushing dueDay past current month
     final now = DateTime.now();
-    final forcedNextDue = DateTime(now.year, now.month + 1, card.dueDay!);
+    final forcedNextDue = DateTime(
+        now.year, now.month + 1, _clampDay(now.year, now.month + 1, card.dueDay!));
     final name = card.bankName ?? '${card.typeLabel} Card';
 
     final schedule = {3: 'due in 3 days', 2: 'due in 2 days', 1: 'due tomorrow', 0: 'due TODAY'};
@@ -146,12 +147,23 @@ class NotificationService {
     );
   }
 
+  /// Clamps [dueDay] to the last valid day of the given month so a due day of
+  /// 31 maps to Feb 28/29 (or the 30th of a 30-day month) instead of silently
+  /// rolling into the following month.
+  int _clampDay(int year, int month, int dueDay) {
+    final lastDay = DateTime(year, month + 1, 0).day;
+    return dueDay > lastDay ? lastDay : dueDay;
+  }
+
   DateTime _nextDueDate(int dueDay) {
     final now = DateTime.now();
-    final thisMonth = DateTime(now.year, now.month, dueDay);
-    return thisMonth.isBefore(DateTime(now.year, now.month, now.day))
-        ? DateTime(now.year, now.month + 1, dueDay)
-        : thisMonth;
+    final thisMonth =
+        DateTime(now.year, now.month, _clampDay(now.year, now.month, dueDay));
+    if (thisMonth.isBefore(DateTime(now.year, now.month, now.day))) {
+      return DateTime(
+          now.year, now.month + 1, _clampDay(now.year, now.month + 1, dueDay));
+    }
+    return thisMonth;
   }
 
   int _notifId(String cardId, int daysBefore) =>
