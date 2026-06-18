@@ -64,7 +64,7 @@ class NotificationService {
 
   /// Schedules the full reminder window around a concrete [dueDate].
   Future<void> _scheduleAround(PaymentCard card, DateTime dueDate) async {
-    final name = card.bankName ?? '${card.typeLabel} Card';
+    final name = card.displayTitle;
     for (int i = 0; i < _reminderOffsets.length; i++) {
       final offset = _reminderOffsets[i];
       // [offset] days BEFORE the due date (a negative offset ⇒ after it).

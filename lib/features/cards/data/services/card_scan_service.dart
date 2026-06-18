@@ -13,6 +13,7 @@ class CardScanResult {
     this.expiryDate,
     this.cvv,
     this.bankName,
+    this.cardName,
   });
 
   final String? holderName;
@@ -29,12 +30,16 @@ class CardScanResult {
   /// Issuing bank, matched from a keyword list.
   final String? bankName;
 
+  /// Co-brand / product name (e.g. "Flipkart"), matched from a keyword list.
+  final String? cardName;
+
   bool get hasAnyField =>
       holderName != null ||
       cardNumber != null ||
       expiryDate != null ||
       cvv != null ||
-      bankName != null;
+      bankName != null ||
+      cardName != null;
 
   /// Combines two scans (e.g. front + back), keeping this result's non-null
   /// fields and filling any gaps from [other].
@@ -44,6 +49,7 @@ class CardScanResult {
         expiryDate: expiryDate ?? other.expiryDate,
         cvv: cvv ?? other.cvv,
         bankName: bankName ?? other.bankName,
+        cardName: cardName ?? other.cardName,
       );
 }
 
@@ -82,6 +88,7 @@ class CardScanService {
       expiryDate: _parseExpiry(normalized),
       holderName: _parseName(normalized),
       bankName: _detectBank(text),
+      cardName: _detectCardName(text),
     );
   }
 
@@ -116,9 +123,11 @@ class CardScanService {
   }
 
   String? _parseExpiry(String normalized) {
-    // MM/YY or MM-YY (not MM/YYYY, to avoid false positives).
-    final m =
-        RegExp(r'\b(0[1-9]|1[0-2])[\/\-](\d{2})\b').firstMatch(normalized);
+    // MM/YY or MM-YY, tolerating spaces around the separator (OCR often adds
+    // them, e.g. "VALID THRU 08 / 28"). The negative lookahead stops it from
+    // grabbing the first two digits of a 4-digit year.
+    final m = RegExp(r'(0[1-9]|1[0-2])\s*[\/\-]\s*(\d{2})(?!\d)')
+        .firstMatch(normalized);
     return m == null ? null : '${m.group(1)}/${m.group(2)}';
   }
 
@@ -189,6 +198,49 @@ class CardScanService {
     'capital one': 'Capital One',
     'barclays': 'Barclays',
     'sbi': 'SBI',
+  };
+
+  String? _detectCardName(String text) {
+    final lower = text.toLowerCase();
+    for (final entry in _cardNameKeywords.entries) {
+      if (RegExp('\\b${RegExp.escape(entry.key)}\\b').hasMatch(lower)) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
+
+  // Popular co-brand / product card names. Ordered specific → generic.
+  static const _cardNameKeywords = <String, String>{
+    'amazon pay': 'Amazon Pay',
+    'amazon': 'Amazon Pay',
+    'flipkart': 'Flipkart',
+    'myntra': 'Myntra',
+    'swiggy': 'Swiggy',
+    'zomato': 'Zomato',
+    'tata neu': 'Tata Neu',
+    'simplyclick': 'SimplyCLICK',
+    'simplysave': 'SimplySAVE',
+    'smartbuy': 'SmartBuy',
+    'millennia': 'Millennia',
+    'moneyback': 'MoneyBack',
+    'regalia': 'Regalia',
+    'diners club': 'Diners Club',
+    'diners': 'Diners Club',
+    'magnus': 'Magnus',
+    'infinia': 'Infinia',
+    'coral': 'Coral',
+    'rubyx': 'Rubyx',
+    'indianoil': 'IndianOil',
+    'vistara': 'Vistara',
+    'irctc': 'IRCTC',
+    'onecard': 'OneCard',
+    'one card': 'OneCard',
+    'cashback': 'Cashback',
+    'platinum': 'Platinum',
+    'signature': 'Signature',
+    'elite': 'Elite',
+    'select': 'Select',
   };
 
   void dispose() => _recognizer.close();

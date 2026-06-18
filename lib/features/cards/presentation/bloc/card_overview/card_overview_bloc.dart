@@ -112,6 +112,9 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
         bankName: (event.bankName?.trim().isEmpty ?? true)
             ? null
             : event.bankName!.trim(),
+        cardName: (event.cardName?.trim().isEmpty ?? true)
+            ? null
+            : event.cardName!.trim(),
         dueDay: event.dueDay,
       );
 

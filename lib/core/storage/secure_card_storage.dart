@@ -115,6 +115,7 @@ class SecureCardStorage {
         'typeLabel': c.typeLabel,
         'cvv': c.cvv,
         if (c.bankName != null) 'bankName': c.bankName,
+        if (c.cardName != null) 'cardName': c.cardName,
         if (c.dueDay != null) 'dueDay': c.dueDay,
         if (c.notes != null) 'notes': c.notes,
       };
@@ -127,6 +128,7 @@ class SecureCardStorage {
         typeLabel: m['typeLabel'] as String,
         cvv: m['cvv'] as String,
         bankName: m['bankName'] as String?,
+        cardName: m['cardName'] as String?,
         dueDay: m['dueDay'] as int?,
         notes: m['notes'] as String?,
       );

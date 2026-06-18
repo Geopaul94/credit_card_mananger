@@ -175,7 +175,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       builder: (ctx) => AlertDialog(
         title: const Text('Delete card?'),
         content:
-            Text('Remove "${_card.bankName ?? _card.typeLabel}" permanently?'),
+            Text('Remove "${_card.displayTitle}" permanently?'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -215,7 +215,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       child: Scaffold(
         backgroundColor: scheme.surfaceContainerLowest,
         appBar: AppBar(
-          title: Text(_card.bankName ?? _card.typeLabel,
+          title: Text(_card.displayTitle,
               style: const TextStyle(fontWeight: FontWeight.w700)),
           actions: [
             IconButton(

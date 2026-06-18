@@ -9,6 +9,7 @@ class PaymentCard extends Equatable {
     required this.typeLabel,
     required this.cvv,
     this.bankName,
+    this.cardName,
     this.dueDay,
     this.notes,
   });
@@ -20,8 +21,22 @@ class PaymentCard extends Equatable {
   final String typeLabel;
   final String cvv;
   final String? bankName;
+  final String? cardName; // co-brand / product name, e.g. "Flipkart"
   final int? dueDay; // monthly due date — null means no reminder set
   final String? notes; // free-text notes (bank login, reminders, etc.)
+
+  /// Title shown in lists / app bar: "Bank - Card Name" when both exist,
+  /// otherwise whichever is present (falling back to the card type).
+  String get displayTitle {
+    final bank = bankName?.trim();
+    final name = cardName?.trim();
+    final hasBank = bank != null && bank.isNotEmpty;
+    final hasName = name != null && name.isNotEmpty;
+    if (hasBank && hasName) return '$bank - $name';
+    if (hasBank) return bank;
+    if (hasName) return name;
+    return typeLabel;
+  }
 
   /// 4532 1234 5678 9012
   String get formattedNumber {
@@ -113,6 +128,8 @@ class PaymentCard extends Equatable {
     String? cvv,
     String? bankName,
     bool clearBankName = false,
+    String? cardName,
+    bool clearCardName = false,
     int? dueDay,
     bool clearDueDay = false,
     String? notes,
@@ -126,12 +143,23 @@ class PaymentCard extends Equatable {
       typeLabel: typeLabel ?? this.typeLabel,
       cvv: cvv ?? this.cvv,
       bankName: clearBankName ? null : (bankName ?? this.bankName),
+      cardName: clearCardName ? null : (cardName ?? this.cardName),
       dueDay: clearDueDay ? null : (dueDay ?? this.dueDay),
       notes: clearNotes ? null : (notes ?? this.notes),
     );
   }
 
   @override
-  List<Object?> get props =>
-      [id, holderName, cardNumber, expiryDate, typeLabel, cvv, bankName, dueDay, notes];
+  List<Object?> get props => [
+        id,
+        holderName,
+        cardNumber,
+        expiryDate,
+        typeLabel,
+        cvv,
+        bankName,
+        cardName,
+        dueDay,
+        notes,
+      ];
 }

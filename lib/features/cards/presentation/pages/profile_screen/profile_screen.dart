@@ -39,28 +39,15 @@ class ProfileScreen extends StatelessWidget {
             _ProfileTile(
               icon: Icons.fingerprint,
               title: 'App lock',
-              subtitle: 'Biometric or PIN protection on every open',
+              subtitle: 'Biometric or device PIN required on every open',
+              trailing: const _AlwaysOnBadge(),
             ),
             SizedBox(height: context.spacing(8)),
             _ProfileTile(
               icon: Icons.shield_outlined,
               title: 'Encryption',
-              subtitle: 'All card data is AES-256 encrypted locally',
-              trailing: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                      color: Colors.green.withValues(alpha: 0.3)),
-                ),
-                child: const Text('Active',
-                    style: TextStyle(
-                        color: Colors.green,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 11)),
-              ),
+              subtitle: 'Card data is always AES-256 encrypted on this device',
+              trailing: const _AlwaysOnBadge(),
             ),
           ],
         ),
@@ -230,6 +217,34 @@ class _ProfileTile extends StatelessWidget {
             style: TextStyle(fontSize: context.font(12))),
         trailing: trailing ?? const Icon(Icons.chevron_right),
       ),
+    );
+  }
+}
+
+// ─── Always-on indicator ──────────────────────────────────────────────────────
+// A non-interactive "Always on" marker — communicates that a protection is
+// mandatory and can't be toggled off (avoids reading like an optional setting).
+
+class _AlwaysOnBadge extends StatelessWidget {
+  const _AlwaysOnBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final green = Colors.green.shade600;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.lock, size: 13, color: green),
+        const SizedBox(width: 5),
+        Text(
+          'Always on',
+          style: TextStyle(
+            color: Colors.green.shade700,
+            fontWeight: FontWeight.w600,
+            fontSize: 11.5,
+          ),
+        ),
+      ],
     );
   }
 }

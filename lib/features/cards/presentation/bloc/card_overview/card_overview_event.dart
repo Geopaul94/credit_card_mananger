@@ -20,6 +20,7 @@ class AddCardRequested extends CardOverviewEvent {
     required this.typeLabel,
     required this.cvv,
     this.bankName,
+    this.cardName,
     this.dueDay,
   });
 
@@ -29,11 +30,20 @@ class AddCardRequested extends CardOverviewEvent {
   final String typeLabel;
   final String cvv;
   final String? bankName;
+  final String? cardName;
   final int? dueDay;
 
   @override
-  List<Object?> get props =>
-      [holderName, cardNumber, expiryDate, typeLabel, cvv, bankName, dueDay];
+  List<Object?> get props => [
+        holderName,
+        cardNumber,
+        expiryDate,
+        typeLabel,
+        cvv,
+        bankName,
+        cardName,
+        dueDay,
+      ];
 }
 
 /// Update an existing card (notes, due date, etc.)

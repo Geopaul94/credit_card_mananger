@@ -68,25 +68,25 @@ class _ProtectionHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: EdgeInsets.all(context.spacing(14)),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade50, Colors.indigo.shade50],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: scheme.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(context.spacing(12)),
-        border: Border.all(color: Colors.blue.withValues(alpha: 0.1)),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.15)),
       ),
       child: Row(
         children: [
-          Icon(Icons.lock, color: Colors.blue, size: context.spacing(22)),
+          Icon(Icons.lock_outline,
+              color: scheme.primary, size: context.spacing(22)),
           SizedBox(width: context.spacing(10)),
           Expanded(
             child: Text(
               'Your card data is encrypted locally on this device.',
-              style: TextStyle(fontSize: context.font(14)),
+              style: TextStyle(
+                  fontSize: context.font(14),
+                  color: scheme.onSurfaceVariant),
             ),
           ),
         ],

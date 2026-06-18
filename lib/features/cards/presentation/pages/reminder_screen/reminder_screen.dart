@@ -264,7 +264,7 @@ class _ActiveReminderCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      card.bankName ?? '${card.typeLabel} Card',
+                      card.displayTitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -344,7 +344,7 @@ class _CompactRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  card.bankName ?? '${card.typeLabel} Card',
+                  card.displayTitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

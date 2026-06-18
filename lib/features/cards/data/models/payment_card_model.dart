@@ -9,6 +9,7 @@ class PaymentCardModel extends PaymentCard {
     required super.typeLabel,
     required super.cvv,
     super.bankName,
+    super.cardName,
     super.dueDay,
     super.notes,
   });
@@ -21,6 +22,7 @@ class PaymentCardModel extends PaymentCard {
         typeLabel: card.typeLabel,
         cvv: card.cvv,
         bankName: card.bankName,
+        cardName: card.cardName,
         dueDay: card.dueDay,
         notes: card.notes,
       );

@@ -118,7 +118,7 @@ class CardFrontFace extends StatelessWidget {
             children: [
               Flexible(
                 child: Text(
-                  card.bankName ?? card.typeLabel,
+                  card.displayTitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(

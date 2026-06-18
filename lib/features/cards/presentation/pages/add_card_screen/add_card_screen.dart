@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/auth/auth_cubit.dart';
@@ -38,6 +39,7 @@ class _AddCardViewState extends State<_AddCardView> {
   // Framework objects — not app state; kept as local fields.
   final _holderCtrl = TextEditingController();
   final _bankCtrl = TextEditingController();
+  final _cardNameCtrl = TextEditingController();
   final _numberCtrl = TextEditingController();
   final _expiryCtrl = TextEditingController();
   final _cvvCtrl = TextEditingController();
@@ -46,6 +48,7 @@ class _AddCardViewState extends State<_AddCardView> {
   void dispose() {
     _holderCtrl.dispose();
     _bankCtrl.dispose();
+    _cardNameCtrl.dispose();
     _numberCtrl.dispose();
     _expiryCtrl.dispose();
     _cvvCtrl.dispose();
@@ -116,6 +119,9 @@ class _AddCardViewState extends State<_AddCardView> {
             bankName: _bankCtrl.text.trim().isEmpty
                 ? null
                 : _bankCtrl.text.trim(),
+            cardName: _cardNameCtrl.text.trim().isEmpty
+                ? null
+                : _cardNameCtrl.text.trim(),
             dueDay: cubit.state.selectedDueDay,
           ),
         );
@@ -138,6 +144,9 @@ class _AddCardViewState extends State<_AddCardView> {
         // Only fill empty fields so a re-scan never clobbers typed-in values.
         if (r.bankName != null && _bankCtrl.text.trim().isEmpty) {
           _bankCtrl.text = r.bankName!;
+        }
+        if (r.cardName != null && _cardNameCtrl.text.trim().isEmpty) {
+          _cardNameCtrl.text = r.cardName!;
         }
         if (r.holderName != null && _holderCtrl.text.trim().isEmpty) {
           _holderCtrl.text = r.holderName!;
@@ -200,8 +209,15 @@ class _AddCardViewState extends State<_AddCardView> {
                   _Field(
                     controller: _bankCtrl,
                     label: 'Bank Name',
-                    hint: 'HDFC Bank',
+                    hint: 'Axis Bank',
                     prefixIcon: Icons.account_balance_outlined,
+                  ),
+                  _Divider(),
+                  _Field(
+                    controller: _cardNameCtrl,
+                    label: 'Card Name',
+                    hint: 'Flipkart',
+                    prefixIcon: Icons.badge_outlined,
                   ),
                   _Divider(),
                   _Field(
@@ -314,6 +330,8 @@ class _AddCardViewState extends State<_AddCardView> {
                         label: 'Expiry',
                         hint: 'MM/YY',
                         prefixIcon: Icons.date_range_outlined,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [_ExpiryDateFormatter()],
                         validator: (v) =>
                             RegExp(r'^(0[1-9]|1[0-2])\/\d{2}$')
                                     .hasMatch(v?.trim() ?? '')
@@ -490,6 +508,7 @@ class _Field extends StatelessWidget {
     required this.prefixIcon,
     this.validator,
     this.keyboardType,
+    this.inputFormatters,
     this.noBorder = false,
   });
 
@@ -499,6 +518,7 @@ class _Field extends StatelessWidget {
   final IconData prefixIcon;
   final String? Function(String?)? validator;
   final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
   final bool noBorder;
 
   @override
@@ -506,6 +526,7 @@ class _Field extends StatelessWidget {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
@@ -651,6 +672,26 @@ class _ScannedBanner extends StatelessWidget {
               size: 15, color: scheme.onTertiaryContainer),
         ),
       ]),
+    );
+  }
+}
+
+// ─── Expiry input formatter ───────────────────────────────────────────────────
+
+/// Formats expiry input as MM/YY: digits only, auto-inserts "/" once a third
+/// digit is typed, capped at 4 digits. e.g. 0 → 02 → 02/9 → 02/29.
+class _ExpiryDateFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    var digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.length > 4) digits = digits.substring(0, 4);
+    final formatted = digits.length > 2
+        ? '${digits.substring(0, 2)}/${digits.substring(2)}'
+        : digits;
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }
