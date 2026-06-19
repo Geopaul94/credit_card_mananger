@@ -6,7 +6,7 @@
     "3. Enable Google Drive API",
     "4. OAuth consent screen → External → add your email as test user",
     "5. Credentials → Create OAuth client ID → Android",
-    "6. Package name: com.example.credit_cards",
+    "6. Package name: com.geo.credit_cards",
     "7. SHA-1: run  keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android",
     "8. Download google-services.json and replace this file"
   ],
@@ -20,7 +20,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
         "android_client_info": {
-          "package_name": "com.example.credit_cards"
+          "package_name": "com.geo.credit_cards"
         }
       },
       "oauth_client": [],

@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.credit_cards"
+    namespace = "com.geo.credit_cards"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -24,7 +24,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.credit_cards"
+        applicationId = "com.geo.credit_cards"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion // flutter_secure_storage requires API 23+ for EncryptedSharedPreferences

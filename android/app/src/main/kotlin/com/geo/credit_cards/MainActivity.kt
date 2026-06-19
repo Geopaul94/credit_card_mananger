@@ -1,4 +1,4 @@
-package com.example.credit_cards
+package com.geo.credit_cards
 
 import android.os.Bundle
 import android.view.WindowManager
