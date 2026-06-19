@@ -28,6 +28,7 @@ class BackupState extends Equatable {
     this.lastDriveBackup,
     this.restoredCount,
     this.errorMessage,
+    this.autoEnabled = true,
   });
 
   final BackupPhase phase;
@@ -35,6 +36,7 @@ class BackupState extends Equatable {
   final DateTime? lastDriveBackup;
   final int? restoredCount; // non-null after a successful restore
   final String? errorMessage;
+  final bool autoEnabled;
 
   bool get isLoading =>
       phase == BackupPhase.signingIn ||
@@ -51,6 +53,7 @@ class BackupState extends Equatable {
     bool clearRestoredCount = false,
     String? errorMessage,
     bool clearError = false,
+    bool? autoEnabled,
   }) {
     return BackupState(
       phase: phase ?? this.phase,
@@ -60,12 +63,13 @@ class BackupState extends Equatable {
       restoredCount:
           clearRestoredCount ? null : (restoredCount ?? this.restoredCount),
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      autoEnabled: autoEnabled ?? this.autoEnabled,
     );
   }
 
   @override
   List<Object?> get props =>
-      [phase, account, lastDriveBackup, restoredCount, errorMessage];
+      [phase, account, lastDriveBackup, restoredCount, errorMessage, autoEnabled];
 }
 
 // ─── Cubit ────────────────────────────────────────────────────────────────────
@@ -86,42 +90,44 @@ class BackupCubit extends Cubit<BackupState> {
   // ── Initialise (call on app start / profile open) ─────────────────────────
 
   Future<void> initialize() async {
+    final autoEnabled = _storage.isAutoBackupEnabled;
     final account = await _drive.signInSilently();
-    if (account == null) return;
-    final driveTime = await _drive.lastBackupTime();
-    emit(state.copyWith(account: account, lastDriveBackup: driveTime));
+    final driveTime = account != null ? await _drive.lastBackupTime() : null;
+    emit(state.copyWith(
+      account: account,
+      lastDriveBackup: driveTime,
+      autoEnabled: autoEnabled,
+    ));
   }
 
   // ── Sign in / out ─────────────────────────────────────────────────────────
 
   Future<void> signIn() async {
     emit(state.copyWith(phase: BackupPhase.signingIn, clearError: true));
-    try {
-      final account = await _drive.signIn();
-      if (account == null) {
-        emit(state.copyWith(phase: BackupPhase.idle));
-        return;
-      }
-      final driveTime = await _drive.lastBackupTime();
-      emit(state.copyWith(
-        phase: BackupPhase.idle,
-        account: account,
-        lastDriveBackup: driveTime,
-      ));
-    } catch (e) {
+    final account = await _drive.signIn();
+    if (account == null) {
       emit(state.copyWith(
         phase: BackupPhase.error,
-        errorMessage: 'Sign-in failed. Check your internet connection.',
+        errorMessage: 'Sign-in cancelled or failed. Try again.',
       ));
+      return;
     }
+    final driveTime = await _drive.lastBackupTime();
+    emit(state.copyWith(
+      phase: BackupPhase.idle,
+      account: account,
+      lastDriveBackup: driveTime,
+    ));
   }
 
   Future<void> signOut() async {
     await _drive.signOut();
+    await _storage.setAutoBackupEnabled(false);
     emit(state.copyWith(
       phase: BackupPhase.idle,
       clearAccount: true,
       clearDriveTime: true,
+      autoEnabled: false,
     ));
   }
 
@@ -135,6 +141,12 @@ class BackupCubit extends Cubit<BackupState> {
           errorMessage: 'Sign in with Google first.'));
       return;
     }
+    if (cards.isEmpty) {
+      emit(state.copyWith(
+          phase: BackupPhase.error,
+          errorMessage: 'Nothing to back up — add a card first.'));
+      return;
+    }
     emit(state.copyWith(phase: BackupPhase.backingUp, clearError: true));
     try {
       final payload = _buildPayload(cards, account.id);
@@ -145,8 +157,6 @@ class BackupCubit extends Cubit<BackupState> {
       emit(state.copyWith(
         phase: BackupPhase.success,
         lastDriveBackup: driveTime ?? DateTime.now(),
-        // Clear any prior restore count so this backup isn't mislabeled as a
-        // restore by the BlocConsumer listener.
         clearRestoredCount: true,
       ));
     } catch (e) {
@@ -155,6 +165,13 @@ class BackupCubit extends Cubit<BackupState> {
         errorMessage: 'Backup failed: ${e.toString()}',
       ));
     }
+  }
+
+  // ── Auto-backup toggle ─────────────────────────────────────────────────────
+
+  Future<void> setAutoBackup(bool enabled) async {
+    await _storage.setAutoBackupEnabled(enabled);
+    emit(state.copyWith(autoEnabled: enabled));
   }
 
   // ── Restore ───────────────────────────────────────────────────────────────
@@ -196,12 +213,13 @@ class BackupCubit extends Cubit<BackupState> {
 
   // ── Auto-backup trigger ───────────────────────────────────────────────────
 
-  /// Called when the app unlocks. Silently backs up if ≥ 7 days have passed.
+  /// Called when the app unlocks. Silently backs up once per day if enabled.
   Future<void> autoBackupIfNeeded(List<PaymentCard> cards) async {
+    if (!_storage.isAutoBackupEnabled) return;
     if (!_storage.needsAutoBackup) return;
+    if (cards.isEmpty) return;
     if (state.account == null) {
-      await _drive.signInSilently();
-      final account = _drive.currentUser;
+      final account = await _drive.signInSilently();
       if (account == null) return;
       emit(state.copyWith(account: account));
     }

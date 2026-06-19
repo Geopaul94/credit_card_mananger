@@ -18,6 +18,7 @@ class SecureCardStorage {
   static const _lastBackupKey = 'cv_last_backup_epoch';
   static const _demoSeededKey = 'cv_demo_seeded_v1';
   static const _paidKey = 'cv_paid_v1';
+  static const _autoBackupEnabledKey = 'cv_auto_backup_enabled';
 
   // ── First-run demo seed ─────────────────────────────────────────────────────
 
@@ -98,12 +99,21 @@ class SecureCardStorage {
   Future<void> markBackedUp() =>
       _prefs.setInt(_lastBackupKey, DateTime.now().millisecondsSinceEpoch);
 
-  /// True when no backup has ever run or the last one was ≥ 7 days ago.
+  /// True when no backup has ever run or the last one was ≥ 1 day ago.
   bool get needsAutoBackup {
     final last = lastBackupTime;
     if (last == null) return true;
-    return DateTime.now().difference(last).inDays >= 7;
+    return DateTime.now().difference(last).inHours >= 24;
   }
+
+  // ── Auto-backup toggle ─────────────────────────────────────────────────────
+
+  /// Whether daily auto-backup is enabled. Defaults to true.
+  bool get isAutoBackupEnabled =>
+      _prefs.getBool(_autoBackupEnabledKey) ?? true;
+
+  Future<void> setAutoBackupEnabled(bool value) =>
+      _prefs.setBool(_autoBackupEnabledKey, value);
 
   // ── JSON helpers ───────────────────────────────────────────────────────────
 

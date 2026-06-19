@@ -89,6 +89,12 @@ class _BackupScreenState extends State<BackupScreen> {
                 _AccountCard(backupState: backupState, scheme: scheme),
                 SizedBox(height: context.spacing(20)),
 
+                // ── Auto-backup section ────────────────────────────────────
+                _sectionLabel(context, 'AUTOMATIC BACKUP'),
+                SizedBox(height: context.spacing(8)),
+                _AutoBackupCard(backupState: backupState, scheme: scheme),
+                SizedBox(height: context.spacing(20)),
+
                 // ── Backup section ─────────────────────────────────────────
                 _sectionLabel(context, 'BACKUP'),
                 SizedBox(height: context.spacing(8)),
@@ -257,6 +263,39 @@ class _AccountCard extends StatelessWidget {
                   child: const Text('Sign out'),
                 ),
               ]),
+      ),
+    ]);
+  }
+}
+
+// ─── Auto-backup card ─────────────────────────────────────────────────────────
+
+class _AutoBackupCard extends StatelessWidget {
+  const _AutoBackupCard({required this.backupState, required this.scheme});
+  final BackupState backupState;
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionCard(children: [
+      SwitchListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        secondary: Icon(Icons.autorenew_rounded,
+            color: backupState.autoEnabled ? scheme.primary : scheme.onSurfaceVariant),
+        title: Text(
+          'Daily automatic backup',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+        subtitle: Text(
+          backupState.autoEnabled
+              ? 'Backs up once a day when you open the app.'
+              : 'Automatic backup is off.',
+          style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+        ),
+        value: backupState.autoEnabled,
+        onChanged: backupState.isLoading
+            ? null
+            : (v) => context.read<BackupCubit>().setAutoBackup(v),
       ),
     ]);
   }

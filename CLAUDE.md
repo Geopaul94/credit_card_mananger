@@ -1,11 +1,21 @@
 # credit_cards
 
-Card wallet app — Flutter.
+Flutter card-wallet app: securely store payment cards, scan them via OCR, and get
+due-date reminders. Local-first and encrypted; optional Google Drive backup.
 
 ## Stack
-- Flutter / Dart
-- Clean architecture, BLoC (state management)
-- ML Kit OCR for card scanning
+- Flutter (Dart SDK `^3.10.4`), clean architecture, BLoC + get_it (DI).
+- `google_mlkit_text_recognition` + `image_picker` — card OCR scan.
+- `flutter_secure_storage` + `encrypt`/`crypto` — encrypted local store.
+- `local_auth` (biometric lock); `flutter_local_notifications` + `timezone` (reminders).
+- `google_sign_in` + `googleapis` — Drive backup.
+
+## Structure (`lib/`)
+- `main.dart` — entrypoint.
+- `core/` — shared infra: `theme/`, `di/` (get_it), `storage/`, `encryption/`, `auth/`,
+  `notifications/`, `backup/`, `network/`, `error/`, `usecases/`, `ui/`, `utils/`.
+- `features/<feature>/{data,domain,presentation}` — `cards` (full 3-layer);
+  `backup` and `lock` (presentation only).
 
 ## Conventions
 - Clean architecture: data / domain / presentation layers.
@@ -26,6 +36,27 @@ Card wallet app — Flutter.
   date); reset automatically each new cycle. Bloc materialises
   `List<PaymentCard>` (data source returns models → `firstWhere(orElse:)` traps).
 - Reminders fire 3 days before → 1 day after due; marking paid cancels the rest.
+
+## Run
+```bash
+flutter pub get
+flutter run            # use a physical Android device (see note below)
+```
+
+## Google Drive backup
+- Auth: `google_sign_in` + `http` package. Uses `account.authHeaders` +
+  `_GoogleAuthClient` wrapper (same pattern as debt_tracker_localdatabase).
+  **NOT** `extension_google_sign_in_as_googleapis_auth` — removed.
+- Backup file stored in Drive AppData (hidden, auto-deleted on uninstall).
+  Encrypted JSON (AES-256, key derived from Google account ID).
+- Auto-backup: daily (24h interval) while app is open, toggle in UI.
+  Disables automatically on sign-out.
+- Safety: empty-card guard before backup; empty-card check before auto-backup.
+- **BLOCKER**: `android/app/google-services.json` has only a placeholder API key.
+  Must add Android OAuth client for package `com.example.credit_cards` +
+  SHA-1 `4F:8C:8B:70:CA:13:FF:6D:4C:4A:35:72:FA:33:CA:B8:90:92:3D:66` in
+  Firebase Console (use existing project 694593410619 from debt_tracker).
+  Download + replace google-services.json. Without this, sign-in fails (error 10).
 
 ## Current state / notes
 - Branch `feature/scan-front-back-and-due-date-calendar`. Tested on a physical
