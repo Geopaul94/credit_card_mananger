@@ -59,7 +59,32 @@ flutter run            # use a physical Android device (see note below)
   Download + replace google-services.json. Without this, sign-in fails (error 10).
 
 ## Current state / notes
-- Branch `feature/scan-front-back-and-due-date-calendar`. Tested on a physical
-  Android device; macOS/web blocked by the biometric lock gate.
+- App label: **CardMate**. Branch `feature/scan-front-back-and-due-date-calendar`.
+  Tested on a physical Android device; macOS/web blocked by the biometric lock gate.
+- Launcher icon: indigo card + green check (assets/icon/, generated via
+  flutter_launcher_icons).
 - Open follow-ups: inline edit of `cardName` on the detail screen; dedupe the
   detail screen's private `_SwipeToConfirm` vs the shared `SwipeToConfirm`.
+
+## Sprints
+
+### Sprint 1 — in-progress (Play Store prep)
+Goal: ship to Play Store internal testing.
+Status: code-side complete (Drive backup port, package rename, launcher icon,
+45 passing unit tests). Pre-upload blockers:
+1. Release keystore + signing config wired (code change pending)
+2. Real `google-services.json` from Firebase Console
+3. Privacy policy URL
+4. Screenshots
+5. Play Console account + listing copy
+
+### Sprint 2 — planned (Expense tracking)
+Goal: per-card spending tracking & cycle totals.
+**Do NOT use READ_SMS** — Play Store rejects expense apps for it (~90% denial
+rate post-2019). Use Android `NotificationListenerService` instead (same as
+CRED / Fold / Jupiter).
+Phases:
+1. Manual expense entry (foundation: `CardExpense` entity, cycle-aware storage)
+2. Notification listener auto-capture (parse top 5 IN bank SMS notifications,
+   match `xx####` last-4 to stored cards)
+3. Ambiguous-prompt fallback (push "Which card?" notification when no last-4 match)
