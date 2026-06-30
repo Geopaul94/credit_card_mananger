@@ -27,7 +27,7 @@ android {
         applicationId = "com.geo.credit_cards"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion // flutter_secure_storage requires API 23+ for EncryptedSharedPreferences
+        minSdk = 30 // Android 11+ (API 30); also satisfies flutter_secure_storage's API 23+ requirement
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
