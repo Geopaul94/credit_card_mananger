@@ -48,3 +48,6 @@ app.*.map.json
 android/key.properties
 *.jks
 *.keystore
+
+# Firebase config — shared production project; keep out of this public repo
+android/app/google-services.json
