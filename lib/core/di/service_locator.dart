@@ -67,12 +67,4 @@ Future<void> setupDependencies() async {
     ..registerFactory(BottomNavigationBloc.new)
     ..registerFactory(
         () => CardOverviewBloc(sl(), sl(), sl(), sl(), sl(), sl()));
-
-  // ── First-run demo seed ─────────────────────────────────────────────────────
-  // Populate 12 sample cards once so every feature has data to exercise, then
-  // schedule reminders for the ones that carry a due day.
-  final seeded = await sl<SecureCardStorage>().seedDemoCardsIfNeeded();
-  for (final card in seeded) {
-    await NotificationService.instance.scheduleCardReminders(card);
-  }
 }
