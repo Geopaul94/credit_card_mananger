@@ -1,48 +1,62 @@
+import '../../../../core/storage/secure_card_storage.dart';
+import '../../domain/entities/payment_card.dart';
 import '../models/payment_card_model.dart';
 
 abstract class LocalCardDataSource {
   Future<List<PaymentCardModel>> getCards();
   Future<void> addCard(PaymentCardModel card);
+  Future<void> updateCard(PaymentCardModel card);
+  Future<void> deleteCard(String cardId);
+
+  /// Overwrites all stored cards — used by backup restore.
+  Future<void> replaceAll(List<PaymentCard> cards);
 }
 
 class LocalCardDataSourceImpl implements LocalCardDataSource {
-  final List<PaymentCardModel> _cards = [
-    const PaymentCardModel(
-      id: '1',
-      holderName: 'Alex Joseph',
-      cardNumber: '4532123456787621',
-      expiryDate: '08/28',
-      typeLabel: 'Credit',
-      cvv: '742',
-      bankName: 'HDFC Bank',
-      dueDay: 15,
-    ),
-    const PaymentCardModel(
-      id: '2',
-      holderName: 'Alex Joseph',
-      cardNumber: '5412345678901094',
-      expiryDate: '03/27',
-      typeLabel: 'Debit',
-      cvv: '318',
-      bankName: 'SBI Bank',
-      dueDay: 5,
-    ),
-    const PaymentCardModel(
-      id: '3',
-      holderName: 'Alex Joseph',
-      cardNumber: '6011000990135816',
-      expiryDate: '11/26',
-      typeLabel: 'Prepaid',
-      cvv: '561',
-      bankName: 'Axis Bank',
-    ),
-  ];
+  LocalCardDataSourceImpl(this._storage);
+
+  final SecureCardStorage _storage;
+
+  /// In-memory cache so repeated reads don't decrypt on every call.
+  List<PaymentCardModel>? _cache;
 
   @override
-  Future<List<PaymentCardModel>> getCards() async =>
-      List<PaymentCardModel>.from(_cards);
+  Future<List<PaymentCardModel>> getCards() async {
+    _cache ??= (await _storage.loadCards())
+        .map(PaymentCardModel.fromEntity)
+        .toList();
+    return List<PaymentCardModel>.from(_cache!);
+  }
 
   @override
-  Future<void> addCard(PaymentCardModel card) async =>
-      _cards.insert(0, card);
+  Future<void> addCard(PaymentCardModel card) async {
+    final list = await getCards();
+    list.insert(0, card);
+    _cache = list;
+    await _storage.saveCards(list);
+  }
+
+  @override
+  Future<void> updateCard(PaymentCardModel card) async {
+    final list = await getCards();
+    final idx = list.indexWhere((c) => c.id == card.id);
+    if (idx != -1) list[idx] = card;
+    _cache = list;
+    await _storage.saveCards(list);
+  }
+
+  @override
+  Future<void> deleteCard(String cardId) async {
+    final list = await getCards();
+    list.removeWhere((c) => c.id == cardId);
+    _cache = list;
+    await _storage.saveCards(list);
+  }
+
+  @override
+  Future<void> replaceAll(List<PaymentCard> cards) async {
+    final models = cards.map(PaymentCardModel.fromEntity).toList();
+    _cache = models;
+    await _storage.replaceAll(models);
+  }
 }

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart' as flutter_bloc;
+import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'core/auth/auth_cubit.dart';
+import 'core/backup/backup_cubit.dart';
 import 'core/di/service_locator.dart';
+import 'core/theme/app_theme.dart';
 import 'core/theme/theme_cubit.dart';
 import 'features/cards/presentation/bloc/bottom_navigation/bottom_navigation_bloc.dart';
 import 'features/cards/presentation/bloc/card_overview/card_overview_bloc.dart';
@@ -14,62 +17,29 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
+// ─── Root app ─────────────────────────────────────────────────────────────────
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return flutter_bloc.BlocProvider(
-      create: (_) => ThemeCubit(),
-      child: flutter_bloc.BlocBuilder<ThemeCubit, ThemeMode>(
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (_) => ThemeCubit()),
+        // AuthCubit lives at the root — survives navigator pushes
+        BlocProvider(create: (_) => sl<AuthCubit>()),
+        // BackupCubit lives at the root so auto-backup can fire after unlock
+        BlocProvider(create: (_) => sl<BackupCubit>()),
+      ],
+      child: BlocBuilder<ThemeCubit, ThemeMode>(
         builder: (context, themeMode) {
           return MaterialApp(
             title: 'Card Vault',
+            debugShowCheckedModeBanner: false,
             themeMode: themeMode,
-            theme: ThemeData(
-              useMaterial3: true,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: const Color(0xFF3B82F6),
-                brightness: Brightness.light,
-              ),
-              scaffoldBackgroundColor: const Color(0xFFF3F6FF),
-              appBarTheme: const AppBarTheme(
-                centerTitle: false,
-                backgroundColor: Colors.transparent,
-                foregroundColor: Color(0xFF0F172A),
-                elevation: 0,
-                scrolledUnderElevation: 0,
-              ),
-              cardTheme: CardThemeData(
-                color: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-            ),
-            darkTheme: ThemeData(
-              useMaterial3: true,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: const Color(0xFF3B82F6),
-                brightness: Brightness.dark,
-              ),
-              scaffoldBackgroundColor: const Color(0xFF0B1220),
-              appBarTheme: const AppBarTheme(
-                centerTitle: false,
-                backgroundColor: Colors.transparent,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                scrolledUnderElevation: 0,
-              ),
-              cardTheme: CardThemeData(
-                color: const Color(0xFF111A2E),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-              ),
-            ),
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
             home: const _AppGate(),
           );
         },
@@ -78,7 +48,8 @@ class MyApp extends StatelessWidget {
   }
 }
 
-/// Handles biometric lock. Re-locks when app goes to background.
+// ─── App gate — shows lock or main shell based on AuthCubit ──────────────────
+
 class _AppGate extends StatefulWidget {
   const _AppGate();
 
@@ -87,8 +58,6 @@ class _AppGate extends StatefulWidget {
 }
 
 class _AppGateState extends State<_AppGate> with WidgetsBindingObserver {
-  bool _isUnlocked = false;
-
   @override
   void initState() {
     super.initState();
@@ -101,27 +70,43 @@ class _AppGateState extends State<_AppGate> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// Re-lock whenever the app leaves the foreground, so card data is never
+  /// reachable without re-auth. Covers paused/hidden/detached (but not the
+  /// transient `inactive` the iOS biometric sheet itself triggers).
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
-      setState(() => _isUnlocked = false);
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      context.read<AuthCubit>().lock();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isUnlocked) {
-      return LockScreen(onUnlocked: () => setState(() => _isUnlocked = true));
-    }
+    return BlocBuilder<AuthCubit, AuthState>(
+      // Only rebuild when the authenticated flag actually flips —
+      // avoids spurious rebuilds while the spinner shows.
+      buildWhen: (prev, curr) => prev.isAuthenticated != curr.isAuthenticated,
+      builder: (context, authState) {
+        if (authState.isAuthenticated) return const _MainShell();
+        return const LockScreen();
+      },
+    );
+  }
+}
 
-    return flutter_bloc.MultiBlocProvider(
+// ─── Main shell — provides card BLoCs ────────────────────────────────────────
+
+class _MainShell extends StatelessWidget {
+  const _MainShell();
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiBlocProvider(
       providers: [
-        flutter_bloc.BlocProvider<BottomNavigationBloc>(
-          create: (_) => sl<BottomNavigationBloc>(),
-        ),
-        flutter_bloc.BlocProvider<CardOverviewBloc>(
-          create: (_) => sl<CardOverviewBloc>(),
-        ),
+        BlocProvider(create: (_) => sl<BottomNavigationBloc>()),
+        BlocProvider(create: (_) => sl<CardOverviewBloc>()),
       ],
       child: const BottomNavigationBarWidget(),
     );

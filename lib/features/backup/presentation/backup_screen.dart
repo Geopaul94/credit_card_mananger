@@ -1,0 +1,556 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+import '../../../core/backup/backup_cubit.dart';
+import '../../../core/ui/responsive_layout.dart';
+import '../../cards/presentation/bloc/card_overview/card_overview_bloc.dart';
+import '../../cards/presentation/bloc/card_overview/card_overview_event.dart';
+import '../../cards/presentation/bloc/card_overview/card_overview_state.dart';
+
+class BackupScreen extends StatefulWidget {
+  const BackupScreen({super.key});
+
+  @override
+  State<BackupScreen> createState() => _BackupScreenState();
+}
+
+class _BackupScreenState extends State<BackupScreen> {
+  @override
+  void initState() {
+    super.initState();
+    context.read<BackupCubit>().initialize();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Backup & Restore',
+            style: TextStyle(fontWeight: FontWeight.w700)),
+      ),
+      body: BlocConsumer<BackupCubit, BackupState>(
+        listener: (context, state) {
+          if (state.phase == BackupPhase.success) {
+            if (state.restoredCount != null) {
+              // Reload cards after restore
+              context
+                  .read<CardOverviewBloc>()
+                  .add(const LoadCardsRequested());
+            }
+            ScaffoldMessenger.of(context)
+              ..clearSnackBars()
+              ..showSnackBar(SnackBar(
+                content: Row(children: [
+                  const Icon(Icons.check_circle_outline,
+                      color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Text(state.restoredCount != null
+                      ? '${state.restoredCount} cards restored!'
+                      : 'Backup uploaded to Google Drive ✓'),
+                ]),
+                backgroundColor: Colors.green.shade700,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                duration: const Duration(seconds: 3),
+              ));
+            final cubit = context.read<BackupCubit>();
+            Future.delayed(const Duration(seconds: 1), () {
+              if (mounted) cubit.dismiss();
+            });
+          } else if (state.phase == BackupPhase.error &&
+              state.errorMessage != null) {
+            ScaffoldMessenger.of(context)
+              ..clearSnackBars()
+              ..showSnackBar(SnackBar(
+                content: Text(state.errorMessage!),
+                backgroundColor: scheme.error,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ));
+            context.read<BackupCubit>().dismiss();
+          }
+        },
+        builder: (context, backupState) {
+          return ResponsiveContent(
+            child: ListView(
+              padding: EdgeInsets.all(context.spacing(16)),
+              children: [
+                // ── Header banner ──────────────────────────────────────────
+                _HeaderBanner(scheme: scheme),
+                SizedBox(height: context.spacing(20)),
+
+                // ── Google account section ─────────────────────────────────
+                _sectionLabel(context, 'GOOGLE ACCOUNT'),
+                SizedBox(height: context.spacing(8)),
+                _AccountCard(backupState: backupState, scheme: scheme),
+                SizedBox(height: context.spacing(20)),
+
+                // ── Auto-backup section ────────────────────────────────────
+                _sectionLabel(context, 'AUTOMATIC BACKUP'),
+                SizedBox(height: context.spacing(8)),
+                _AutoBackupCard(backupState: backupState, scheme: scheme),
+                SizedBox(height: context.spacing(20)),
+
+                // ── Backup section ─────────────────────────────────────────
+                _sectionLabel(context, 'BACKUP'),
+                SizedBox(height: context.spacing(8)),
+                _BackupCard(backupState: backupState, scheme: scheme),
+                SizedBox(height: context.spacing(20)),
+
+                // ── Restore section ────────────────────────────────────────
+                _sectionLabel(context, 'RESTORE'),
+                SizedBox(height: context.spacing(8)),
+                _RestoreCard(backupState: backupState, scheme: scheme),
+                SizedBox(height: context.spacing(20)),
+
+                // ── Info card ──────────────────────────────────────────────
+                _InfoCard(scheme: scheme),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _sectionLabel(BuildContext context, String label) {
+    return Text(label,
+        style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+            color: Theme.of(context).colorScheme.primary));
+  }
+}
+
+// ─── Header banner ────────────────────────────────────────────────────────────
+
+class _HeaderBanner extends StatelessWidget {
+  const _HeaderBanner({required this.scheme});
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [scheme.primary, scheme.secondary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.2),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.cloud_sync_rounded,
+              color: Colors.white, size: 26),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Secure Cloud Backup',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16)),
+              const SizedBox(height: 4),
+              Text(
+                'AES-256 encrypted. Only you can read it.',
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.8), fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ─── Account card ─────────────────────────────────────────────────────────────
+
+class _AccountCard extends StatelessWidget {
+  const _AccountCard({required this.backupState, required this.scheme});
+  final BackupState backupState;
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final account = backupState.account;
+
+    return _SectionCard(children: [
+      Padding(
+        padding: const EdgeInsets.all(16),
+        child: account == null
+            ? Column(children: [
+                Icon(Icons.account_circle_outlined,
+                    size: 48, color: scheme.onSurfaceVariant),
+                const SizedBox(height: 10),
+                Text('Connect your Google account to enable backup.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: scheme.onSurfaceVariant, fontSize: 13)),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: backupState.isLoading
+                        ? null
+                        : () => context.read<BackupCubit>().signIn(),
+                    icon: backupState.phase == BackupPhase.signingIn
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.login),
+                    label: Text(backupState.phase == BackupPhase.signingIn
+                        ? 'Signing in…'
+                        : 'Sign in with Google'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+              ])
+            : Row(children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundImage: account.photoUrl != null
+                      ? NetworkImage(account.photoUrl!)
+                      : null,
+                  backgroundColor: scheme.primary.withValues(alpha: 0.15),
+                  child: account.photoUrl == null
+                      ? Icon(Icons.person, color: scheme.primary)
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(account.displayName ?? 'Google Account',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 15)),
+                      Text(account.email,
+                          style: TextStyle(
+                              color: scheme.onSurfaceVariant, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => context.read<BackupCubit>().signOut(),
+                  style: TextButton.styleFrom(
+                      foregroundColor: scheme.error,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6)),
+                  child: const Text('Sign out'),
+                ),
+              ]),
+      ),
+    ]);
+  }
+}
+
+// ─── Auto-backup card ─────────────────────────────────────────────────────────
+
+class _AutoBackupCard extends StatelessWidget {
+  const _AutoBackupCard({required this.backupState, required this.scheme});
+  final BackupState backupState;
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionCard(children: [
+      SwitchListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        secondary: Icon(Icons.autorenew_rounded,
+            color: backupState.autoEnabled ? scheme.primary : scheme.onSurfaceVariant),
+        title: Text(
+          'Daily automatic backup',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+        subtitle: Text(
+          backupState.autoEnabled
+              ? 'Backs up once a day when you open the app.'
+              : 'Automatic backup is off.',
+          style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+        ),
+        value: backupState.autoEnabled,
+        onChanged: backupState.isLoading
+            ? null
+            : (v) => context.read<BackupCubit>().setAutoBackup(v),
+      ),
+    ]);
+  }
+}
+
+// ─── Backup card ──────────────────────────────────────────────────────────────
+
+class _BackupCard extends StatelessWidget {
+  const _BackupCard({required this.backupState, required this.scheme});
+  final BackupState backupState;
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final lastDrive = backupState.lastDriveBackup;
+    final isSignedIn = backupState.account != null;
+
+    return _SectionCard(children: [
+      Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.backup_rounded,
+                  size: 20, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text('Back up to Google Drive',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: scheme.onSurface)),
+            ]),
+            const SizedBox(height: 6),
+            Text(
+              lastDrive != null
+                  ? 'Last backup: ${_formatDate(lastDrive)}'
+                  : 'No backup yet',
+              style: TextStyle(
+                  color: scheme.onSurfaceVariant, fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            BlocBuilder<CardOverviewBloc, CardOverviewState>(
+              builder: (context, cardState) => SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: (isSignedIn && !backupState.isLoading)
+                      ? () => context
+                          .read<BackupCubit>()
+                          .backupNow(cardState.cards)
+                      : null,
+                  icon: backupState.phase == BackupPhase.backingUp
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.cloud_upload_outlined),
+                  label: Text(backupState.phase == BackupPhase.backingUp
+                      ? 'Uploading…'
+                      : 'Backup Now  (${cardState.cards.length} cards)'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+            ),
+            if (!isSignedIn) ...[
+              const SizedBox(height: 8),
+              Text('Sign in above to enable backup.',
+                  style: TextStyle(
+                      color: scheme.onSurfaceVariant, fontSize: 12),
+                  textAlign: TextAlign.center),
+            ],
+          ],
+        ),
+      ),
+    ]);
+  }
+
+  String _formatDate(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    if (diff.inDays == 1) return 'Yesterday';
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+}
+
+// ─── Restore card ─────────────────────────────────────────────────────────────
+
+class _RestoreCard extends StatelessWidget {
+  const _RestoreCard({required this.backupState, required this.scheme});
+  final BackupState backupState;
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSignedIn = backupState.account != null;
+
+    return _SectionCard(children: [
+      Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.restore_rounded, size: 20, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text('Restore from backup',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: scheme.onSurface)),
+            ]),
+            const SizedBox(height: 6),
+            Text(
+              'Downloads your encrypted backup from Drive and replaces the current cards.',
+              style: TextStyle(
+                  color: scheme.onSurfaceVariant,
+                  fontSize: 12,
+                  height: 1.4),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: (isSignedIn && !backupState.isLoading)
+                    ? () => _confirmRestore(context)
+                    : null,
+                icon: backupState.phase == BackupPhase.restoring
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: scheme.primary),
+                      )
+                    : const Icon(Icons.cloud_download_outlined),
+                label: Text(backupState.phase == BackupPhase.restoring
+                    ? 'Restoring…'
+                    : 'Restore from Drive'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ]);
+  }
+
+  Future<void> _confirmRestore(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Restore backup?'),
+        content: const Text(
+          'This will replace all current cards with the ones from your Google Drive backup. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && context.mounted) {
+      context.read<BackupCubit>().restore();
+    }
+  }
+}
+
+// ─── Info card ────────────────────────────────────────────────────────────────
+
+class _InfoCard extends StatelessWidget {
+  const _InfoCard({required this.scheme});
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.shield_outlined, size: 16, color: scheme.primary),
+            const SizedBox(width: 8),
+            Text('How it works',
+                style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: scheme.onSurface)),
+          ]),
+          const SizedBox(height: 10),
+          ...[
+            '🔐  Cards are encrypted with AES-256 before upload.',
+            '🔑  Encryption key is derived from your Google account — only you can decrypt.',
+            '📁  Stored in Drive AppData (hidden from regular Drive view).',
+            '🔄  Auto-backup runs silently every 7 days when you open the app.',
+            '📲  To restore on a new phone, install the app, sign in with the same Google account, and tap Restore.',
+          ].map((line) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(line,
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.onSurfaceVariant,
+                        height: 1.4)),
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Shared card container ────────────────────────────────────────────────────
+
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: scheme.outline.withValues(alpha: 0.12)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+    );
+  }
+}
