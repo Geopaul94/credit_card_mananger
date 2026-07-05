@@ -49,6 +49,17 @@ android {
     }
 }
 
+// Use the UNBUNDLED ML Kit text-recognition (Latin): the ~16 MB native OCR
+// engine is delivered by Google Play Services at runtime instead of being
+// packaged in the APK. The other scripts are compileOnly, so they add no size.
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "com.google.mlkit" && requested.name == "text-recognition") {
+            useTarget("com.google.android.gms:play-services-mlkit-text-recognition:19.0.0")
+        }
+    }
+}
+
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
