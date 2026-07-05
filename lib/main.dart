@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_bloc/flutter_bloc.dart' as flutter_bloc;
 
 import 'core/di/service_locator.dart';
 import 'core/theme/theme_cubit.dart';
@@ -19,9 +19,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
+    return flutter_bloc.BlocProvider(
       create: (_) => ThemeCubit(),
-      child: BlocBuilder<ThemeCubit, ThemeMode>(
+      child: flutter_bloc.BlocBuilder<ThemeCubit, ThemeMode>(
         builder: (context, themeMode) {
           return MaterialApp(
             title: 'Card Vault',
@@ -114,12 +114,12 @@ class _AppGateState extends State<_AppGate> with WidgetsBindingObserver {
       return LockScreen(onUnlocked: () => setState(() => _isUnlocked = true));
     }
 
-    return MultiBlocProvider(
+    return flutter_bloc.MultiBlocProvider(
       providers: [
-        BlocProvider<BottomNavigationBloc>(
+        flutter_bloc.BlocProvider<BottomNavigationBloc>(
           create: (_) => sl<BottomNavigationBloc>(),
         ),
-        BlocProvider<CardOverviewBloc>(
+        flutter_bloc.BlocProvider<CardOverviewBloc>(
           create: (_) => sl<CardOverviewBloc>(),
         ),
       ],

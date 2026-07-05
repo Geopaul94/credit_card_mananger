@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
 
-import '../../../../core/ui/responsive_layout.dart';
 import '../bloc/bottom_navigation/bottom_navigation_bloc.dart';
 import '../bloc/bottom_navigation/bottom_navigation_event.dart';
 import '../bloc/bottom_navigation/bottom_navigation_state.dart';
@@ -44,9 +43,9 @@ class BottomNavigationBarWidget extends StatelessWidget {
               ],
             ),
             child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: context.spacing(15),
-                vertical: context.spacing(8),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 15.0,
+                vertical: 8.0,
               ),
               child: GNav(
                 selectedIndex: state.currentIndex,
@@ -57,11 +56,11 @@ class BottomNavigationBarWidget extends StatelessWidget {
                 },
                 gap: 8,
                 activeColor: colorScheme.primary,
-                iconSize: context.spacing(24),
-                textSize: context.font(13),
-                padding: EdgeInsets.symmetric(
-                  horizontal: context.spacing(20),
-                  vertical: context.spacing(12),
+                iconSize: 24.0,
+                textSize: 13.0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20.0,
+                  vertical: 12.0,
                 ),
                 duration: const Duration(milliseconds: 400),
                 tabBackgroundColor: colorScheme.primary.withValues(alpha: 0.12),
