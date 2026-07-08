@@ -33,7 +33,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   late PaymentCard _card;
 
   // ── Reveal toggles ─────────────────────────────────────────────────────────
-  bool _showCvv = false;
   bool _showNumber = false;
 
   // ── Due-date editing ───────────────────────────────────────────────────────
@@ -283,8 +282,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     child: _CardBackFace(
                       card: _card,
                       gradientColors: _gradient,
-                      showCvv: _showCvv,
-                      onToggleCvv: () => setState(() => _showCvv = !_showCvv),
                     ),
                   ),
           );
@@ -318,18 +315,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         label: 'Expiry',
         value: _card.expiryDate,
         onCopy: () => _copy(_card.expiryDate, 'Expiry'),
-      ),
-      _RowDivider(),
-      _DetailRow(
-        icon: Icons.lock_outline,
-        label: 'CVV',
-        value: _showCvv ? _card.cvv : '•••',
-        onCopy: () => _copy(_card.cvv, 'CVV'),
-        trailing: _IconBox(
-          icon: _showCvv ? Icons.visibility_off : Icons.visibility,
-          onTap: () => setState(() => _showCvv = !_showCvv),
-          scheme: scheme,
-        ),
       ),
       _RowDivider(),
       _DetailRow(
@@ -970,14 +955,10 @@ class _CardBackFace extends StatelessWidget {
   const _CardBackFace({
     required this.card,
     required this.gradientColors,
-    required this.showCvv,
-    required this.onToggleCvv,
   });
 
   final PaymentCard card;
   final List<Color> gradientColors;
-  final bool showCvv;
-  final VoidCallback onToggleCvv;
 
   @override
   Widget build(BuildContext context) {
@@ -1011,44 +992,12 @@ class _CardBackFace extends StatelessWidget {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(4)),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                child: Row(children: [
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: List.generate(
-                          3,
-                          (_) => Container(
-                              height: 1, color: Colors.grey.shade300)),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text('CVV',
-                      style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey.shade500,
-                          fontWeight: FontWeight.w700)),
-                  const SizedBox(width: 6),
-                  Text(
-                    showCvv ? card.cvv : '•••',
-                    style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.black87,
-                        letterSpacing: 2),
-                  ),
-                  const SizedBox(width: 4),
-                  GestureDetector(
-                    onTap: onToggleCvv,
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(
-                        showCvv ? Icons.visibility_off : Icons.visibility,
-                        size: 14,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                  ),
-                ]),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: List.generate(
+                      3,
+                      (_) => Container(height: 1, color: Colors.grey.shade300)),
+                ),
               ),
             ),
             Padding(

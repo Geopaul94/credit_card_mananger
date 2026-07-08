@@ -108,7 +108,6 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
         cardNumber: event.cardNumber.replaceAll(RegExp(r'\D'), ''),
         expiryDate: event.expiryDate.trim(),
         typeLabel: event.typeLabel.trim(),
-        cvv: event.cvv.trim(),
         bankName: (event.bankName?.trim().isEmpty ?? true)
             ? null
             : event.bankName!.trim(),

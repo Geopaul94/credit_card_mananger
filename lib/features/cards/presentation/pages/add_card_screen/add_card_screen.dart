@@ -42,7 +42,6 @@ class _AddCardViewState extends State<_AddCardView> {
   final _cardNameCtrl = TextEditingController();
   final _numberCtrl = TextEditingController();
   final _expiryCtrl = TextEditingController();
-  final _cvvCtrl = TextEditingController();
 
   @override
   void dispose() {
@@ -51,7 +50,6 @@ class _AddCardViewState extends State<_AddCardView> {
     _cardNameCtrl.dispose();
     _numberCtrl.dispose();
     _expiryCtrl.dispose();
-    _cvvCtrl.dispose();
     super.dispose();
   }
 
@@ -81,7 +79,7 @@ class _AddCardViewState extends State<_AddCardView> {
         title: const Text('Front captured ✓'),
         content: const Text(
           'Now flip the card over and capture the back so we can read the '
-          'CVV. You can skip this and type the CVV yourself.',
+          'issuing bank and card number. You can skip this step.',
         ),
         actions: [
           TextButton(
@@ -115,7 +113,6 @@ class _AddCardViewState extends State<_AddCardView> {
             cardNumber: _numberCtrl.text,
             expiryDate: _expiryCtrl.text,
             typeLabel: cubit.state.cardType,
-            cvv: _cvvCtrl.text,
             bankName: _bankCtrl.text.trim().isEmpty
                 ? null
                 : _bankCtrl.text.trim(),
@@ -156,9 +153,6 @@ class _AddCardViewState extends State<_AddCardView> {
         }
         if (r.expiryDate != null && _expiryCtrl.text.trim().isEmpty) {
           _expiryCtrl.text = r.expiryDate!;
-        }
-        if (r.cvv != null && _cvvCtrl.text.trim().isEmpty) {
-          _cvvCtrl.text = r.cvv!;
         }
       },
       child: Scaffold(
@@ -323,40 +317,19 @@ class _AddCardViewState extends State<_AddCardView> {
                     },
                   ),
                   _Divider(),
-                  Row(children: [
-                    Expanded(
-                      child: _Field(
-                        controller: _expiryCtrl,
-                        label: 'Expiry',
-                        hint: 'MM/YY',
-                        prefixIcon: Icons.date_range_outlined,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [_ExpiryDateFormatter()],
-                        validator: (v) =>
-                            RegExp(r'^(0[1-9]|1[0-2])\/\d{2}$')
-                                    .hasMatch(v?.trim() ?? '')
-                                ? null
-                                : 'MM/YY',
-                        noBorder: true,
-                      ),
-                    ),
-                    Container(
-                        width: 1,
-                        height: 56,
-                        color: scheme.outline.withValues(alpha: 0.15)),
-                    // CVV visibility — rebuilds only when showCvv changes.
-                    Expanded(
-                      child: BlocBuilder<AddCardCubit, AddCardState>(
-                        buildWhen: (p, c) => p.showCvv != c.showCvv,
-                        builder: (context, state) => _CvvField(
-                          controller: _cvvCtrl,
-                          showCvv: state.showCvv,
-                          onToggle: () =>
-                              context.read<AddCardCubit>().toggleCvv(),
-                        ),
-                      ),
-                    ),
-                  ]),
+                  _Field(
+                    controller: _expiryCtrl,
+                    label: 'Expiry',
+                    hint: 'MM/YY',
+                    prefixIcon: Icons.date_range_outlined,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [_ExpiryDateFormatter()],
+                    validator: (v) =>
+                        RegExp(r'^(0[1-9]|1[0-2])\/\d{2}$')
+                                .hasMatch(v?.trim() ?? '')
+                            ? null
+                            : 'MM/YY',
+                  ),
                 ]),
 
                 const SizedBox(height: 20),
@@ -509,7 +482,6 @@ class _Field extends StatelessWidget {
     this.validator,
     this.keyboardType,
     this.inputFormatters,
-    this.noBorder = false,
   });
 
   final TextEditingController controller;
@@ -519,7 +491,6 @@ class _Field extends StatelessWidget {
   final String? Function(String?)? validator;
   final TextInputType? keyboardType;
   final List<TextInputFormatter>? inputFormatters;
-  final bool noBorder;
 
   @override
   Widget build(BuildContext context) {
@@ -532,52 +503,6 @@ class _Field extends StatelessWidget {
         labelText: label,
         hintText: hint,
         prefixIcon: Icon(prefixIcon, size: 20),
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        errorBorder: InputBorder.none,
-        focusedErrorBorder: InputBorder.none,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      ),
-    );
-  }
-}
-
-class _CvvField extends StatelessWidget {
-  const _CvvField({
-    required this.controller,
-    required this.showCvv,
-    required this.onToggle,
-  });
-
-  final TextEditingController controller;
-  final bool showCvv;
-  final VoidCallback onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: TextInputType.number,
-      obscureText: !showCvv,
-      maxLength: 4,
-      validator: (v) {
-        final d = v?.replaceAll(RegExp(r'\D'), '') ?? '';
-        return d.length < 3 ? 'Enter CVV' : null;
-      },
-      decoration: InputDecoration(
-        labelText: 'CVV',
-        hintText: '•••',
-        counterText: '',
-        prefixIcon: const Icon(Icons.lock_outline, size: 20),
-        suffixIcon: GestureDetector(
-          onTap: onToggle,
-          child: Icon(
-            showCvv ? Icons.visibility_off : Icons.visibility,
-            size: 20,
-          ),
-        ),
         border: InputBorder.none,
         enabledBorder: InputBorder.none,
         focusedBorder: InputBorder.none,

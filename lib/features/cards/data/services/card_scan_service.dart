@@ -11,7 +11,6 @@ class CardScanResult {
     this.holderName,
     this.cardNumber,
     this.expiryDate,
-    this.cvv,
     this.bankName,
     this.cardName,
   });
@@ -24,9 +23,6 @@ class CardScanResult {
   /// MM/YY format
   final String? expiryDate;
 
-  /// 3–4 digit security code (read from the back of the card).
-  final String? cvv;
-
   /// Issuing bank, matched from a keyword list.
   final String? bankName;
 
@@ -37,7 +33,6 @@ class CardScanResult {
       holderName != null ||
       cardNumber != null ||
       expiryDate != null ||
-      cvv != null ||
       bankName != null ||
       cardName != null;
 
@@ -47,7 +42,6 @@ class CardScanResult {
         holderName: holderName ?? other.holderName,
         cardNumber: cardNumber ?? other.cardNumber,
         expiryDate: expiryDate ?? other.expiryDate,
-        cvv: cvv ?? other.cvv,
         bankName: bankName ?? other.bankName,
         cardName: cardName ?? other.cardName,
       );
@@ -92,12 +86,11 @@ class CardScanService {
     );
   }
 
-  // ── Back: CVV (plus bank / card-number fallback) ───────────────────────────
+  // ── Back: bank / card-number fallback ──────────────────────────────────────
 
   CardScanResult _parseBack(String text) {
     final normalized = text.replaceAll(RegExp(r'[ \t]+'), ' ');
     return CardScanResult(
-      cvv: _parseCvv(text),
       cardNumber: _parseNumber(normalized),
       bankName: _detectBank(text),
     );
@@ -141,22 +134,6 @@ class CardScanService {
       final words =
           trimmed.split(RegExp(r'\s+')).where((w) => w.length >= 2).toList();
       if (words.length >= 2) return words.join(' ');
-    }
-    return null;
-  }
-
-  String? _parseCvv(String text) {
-    // Prefer a value explicitly labelled CVV / CVC / CVV2 / CID.
-    final labeled = RegExp(
-      r'(?:cvv2?|cvc2?|cid)\D{0,6}(\d{3,4})',
-      caseSensitive: false,
-    ).firstMatch(text);
-    if (labeled != null) return labeled.group(1);
-
-    // Otherwise the first standalone 3-digit group on its own line.
-    for (final line in text.split('\n')) {
-      final m = RegExp(r'^\s*(\d{3})\s*$').firstMatch(line);
-      if (m != null) return m.group(1);
     }
     return null;
   }

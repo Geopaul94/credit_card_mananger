@@ -7,7 +7,6 @@ class PaymentCard extends Equatable {
     required this.cardNumber,
     required this.expiryDate,
     required this.typeLabel,
-    required this.cvv,
     this.bankName,
     this.cardName,
     this.dueDay,
@@ -19,7 +18,6 @@ class PaymentCard extends Equatable {
   final String cardNumber; // digits only
   final String expiryDate; // MM/YY
   final String typeLabel;
-  final String cvv;
   final String? bankName;
   final String? cardName; // co-brand / product name, e.g. "Flipkart"
   final int? dueDay; // monthly due date — null means no reminder set
@@ -125,7 +123,6 @@ class PaymentCard extends Equatable {
     String? cardNumber,
     String? expiryDate,
     String? typeLabel,
-    String? cvv,
     String? bankName,
     bool clearBankName = false,
     String? cardName,
@@ -141,7 +138,6 @@ class PaymentCard extends Equatable {
       cardNumber: cardNumber ?? this.cardNumber,
       expiryDate: expiryDate ?? this.expiryDate,
       typeLabel: typeLabel ?? this.typeLabel,
-      cvv: cvv ?? this.cvv,
       bankName: clearBankName ? null : (bankName ?? this.bankName),
       cardName: clearCardName ? null : (cardName ?? this.cardName),
       dueDay: clearDueDay ? null : (dueDay ?? this.dueDay),
@@ -156,7 +152,6 @@ class PaymentCard extends Equatable {
         cardNumber,
         expiryDate,
         typeLabel,
-        cvv,
         bankName,
         cardName,
         dueDay,
