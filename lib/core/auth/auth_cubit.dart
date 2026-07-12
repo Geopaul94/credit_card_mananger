@@ -121,6 +121,12 @@ class AuthCubit extends Cubit<AuthState> {
       _lockDeferred = true;
       return;
     }
+    // The Android biometric prompt covers the app and fires paused/hidden on
+    // many devices. Invalidating the in-flight attempt here would discard the
+    // user's successful scan and loop them back to the lock screen forever.
+    // Skipping is safe: the vault is still locked, and unlocking always
+    // requires the pending biometric to succeed right now.
+    if (state.isAuthenticating) return;
     _epoch++;
     if (!isClosed) emit(const AuthState(phase: AuthPhase.idle));
   }

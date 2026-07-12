@@ -1,9 +1,8 @@
-import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 
 enum AuthStatus {
   success,
-  cancelled,  // user dismissed — just show retry, no error text
+  cancelled, // user dismissed — just show retry, no error text
   notEnrolled, // no biometrics/PIN set up on device
   lockedOut,
   permanentlyLockedOut,
@@ -24,38 +23,61 @@ class BiometricService {
 
   Future<AuthResult> authenticate() async {
     try {
+      // Kill any zombie session first. An interrupted attempt (e.g. the
+      // device-credential screen taking over the activity) can leave the
+      // previous session stuck "in progress", which would make every later
+      // attempt fail instantly and the Try Again button appear dead.
+      await _stopStaleSession();
+
       final granted = await _auth.authenticate(
         localizedReason: 'Unlock to access your saved cards',
-        options: const AuthenticationOptions(
-          biometricOnly: false,  // shows fingerprint + face + PIN/pattern
-          stickyAuth: false,     // false avoids re-triggering issues
-          useErrorDialogs: true,
-        ),
+        biometricOnly: false, // fingerprint + face + PIN/pattern fallback
+        // The PIN/pattern screen backgrounds the app on many devices; this
+        // tells the plugin to resume authentication on foregrounding instead
+        // of failing the attempt.
+        persistAcrossBackgrounding: true,
       );
+      // In 3.x `false` means the user failed the challenge (cancel throws).
       return granted
           ? const AuthResult._(AuthStatus.success)
-          : const AuthResult._(AuthStatus.cancelled);
-    } on PlatformException catch (e) {
-      return AuthResult._(_codeToStatus(e.code), e.message);
+          : const AuthResult._(AuthStatus.failure);
+    } on LocalAuthException catch (e) {
+      // A stuck session must be cleared so the next attempt can show a prompt.
+      if (e.code == LocalAuthExceptionCode.authInProgress) {
+        await _stopStaleSession();
+      }
+      return AuthResult._(_codeToStatus(e.code), e.description);
     } catch (e) {
       return AuthResult._(AuthStatus.failure, e.toString());
     }
   }
 
-  AuthStatus _codeToStatus(String code) {
+  /// Best-effort cancel of a previous in-flight prompt (Android only; no-op
+  /// elsewhere). Never throws — a failure to stop must not block a new try.
+  Future<void> _stopStaleSession() async {
+    try {
+      await _auth.stopAuthentication();
+    } catch (_) {}
+  }
+
+  AuthStatus _codeToStatus(LocalAuthExceptionCode code) {
     switch (code) {
-      case 'NotEnrolled':
-      case 'not_enrolled':
-      case 'NotAvailable':
+      case LocalAuthExceptionCode.userCanceled:
+      case LocalAuthExceptionCode.systemCanceled:
+      case LocalAuthExceptionCode.timeout:
+        return AuthStatus.cancelled;
+      case LocalAuthExceptionCode.noCredentialsSet:
+      case LocalAuthExceptionCode.noBiometricsEnrolled:
         return AuthStatus.notEnrolled;
-      case 'LockedOut':
-      case 'locked_out':
+      case LocalAuthExceptionCode.temporaryLockout:
         return AuthStatus.lockedOut;
-      case 'PermanentlyLockedOut':
-      case 'permanently_locked_out':
+      case LocalAuthExceptionCode.biometricLockout:
         return AuthStatus.permanentlyLockedOut;
-      case 'otherOperatingSystem':
+      case LocalAuthExceptionCode.noBiometricHardware:
         return AuthStatus.notAvailable;
+      // authInProgress, uiUnavailable, userRequestedFallback, deviceError,
+      // unknownError, and any codes added in future plugin versions — all
+      // retryable.
       default:
         return AuthStatus.failure;
     }
