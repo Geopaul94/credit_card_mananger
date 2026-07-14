@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../core/backup/backup_cubit.dart';
 import '../../../../../core/notifications/notification_service.dart';
 import '../../../../../core/storage/secure_card_storage.dart';
+import '../../../../../core/utils/card_input.dart';
 import '../../../domain/entities/payment_card.dart';
 import '../../../domain/usecases/add_card_use_case.dart';
 import '../../../domain/usecases/delete_card_use_case.dart';
@@ -104,16 +105,16 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
     try {
       final card = PaymentCard(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        holderName: event.holderName.trim(),
+        holderName: smartTitleCase(event.holderName),
         cardNumber: event.cardNumber.replaceAll(RegExp(r'\D'), ''),
         expiryDate: event.expiryDate.trim(),
         typeLabel: event.typeLabel.trim(),
         bankName: (event.bankName?.trim().isEmpty ?? true)
             ? null
-            : event.bankName!.trim(),
+            : smartTitleCase(event.bankName!),
         cardName: (event.cardName?.trim().isEmpty ?? true)
             ? null
-            : event.cardName!.trim(),
+            : smartTitleCase(event.cardName!),
         dueDay: event.dueDay,
       );
 
@@ -134,7 +135,17 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
     Emitter<CardOverviewState> emit,
   ) async {
     try {
-      await _updateCard(event.card);
+      // Normalise names on edit too, so typed-over values stay clean.
+      final normalized = event.card.copyWith(
+        holderName: smartTitleCase(event.card.holderName),
+        bankName: event.card.bankName == null
+            ? null
+            : smartTitleCase(event.card.bankName!),
+        cardName: event.card.cardName == null
+            ? null
+            : smartTitleCase(event.card.cardName!),
+      );
+      await _updateCard(normalized);
 
       // Reschedule (or cancel) reminders when the due day changes, and clear
       // any stale "paid" flag — a changed/cleared cycle should start unpaid.
@@ -144,7 +155,7 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
         if (event.card.dueDay == null) {
           await _notif.cancelCardReminders(event.card.id);
         } else {
-          await _notif.scheduleCardReminders(event.card);
+          await _notif.scheduleCardReminders(normalized);
         }
         if (_paidMap.containsKey(event.card.id)) {
           _paidMap = Map<String, DateTime>.from(_paidMap)

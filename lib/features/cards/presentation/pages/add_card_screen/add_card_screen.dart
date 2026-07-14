@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../../core/auth/auth_cubit.dart';
 import '../../../../../core/di/service_locator.dart';
 import '../../../../../core/ui/responsive_layout.dart';
+import '../../../../../core/utils/card_input.dart';
 import '../../bloc/add_card/add_card_cubit.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../bloc/card_overview/card_overview_event.dart';
@@ -102,8 +103,40 @@ class _AddCardViewState extends State<_AddCardView> {
 
   // ── Save ──────────────────────────────────────────────────────────────────
 
-  void _saveCard(BuildContext context) {
+  Future<void> _saveCard(BuildContext context) async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Blocking errors are handled by the validators above; these two are
+    // legitimate-but-suspicious cases where the user decides.
+    final warnings = <String>[];
+    final digits = _numberCtrl.text.replaceAll(RegExp(r'\D'), '');
+    if (!luhnCheck(digits)) {
+      warnings.add('The card number fails its checksum — one digit is '
+          'probably mistyped.');
+    }
+    if (isExpiredDate(_expiryCtrl.text)) {
+      warnings.add('This card expired on ${_expiryCtrl.text.trim()}.');
+    }
+    if (warnings.isNotEmpty) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Check card details'),
+          content: Text(warnings.join('\n\n')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Fix it'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Save anyway'),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true || !context.mounted) return;
+    }
 
     final cubit = context.read<AddCardCubit>();
 
@@ -309,12 +342,8 @@ class _AddCardViewState extends State<_AddCardView> {
                     hint: '4532 1234 5678 9012',
                     prefixIcon: Icons.credit_card,
                     keyboardType: TextInputType.number,
-                    validator: (v) {
-                      final d = v?.replaceAll(RegExp(r'\D'), '') ?? '';
-                      return (d.length < 12 || d.length > 19)
-                          ? 'Enter a valid card number'
-                          : null;
-                    },
+                    inputFormatters: [CardNumberInputFormatter()],
+                    validator: validateCardNumber,
                   ),
                   _Divider(),
                   _Field(
@@ -323,12 +352,8 @@ class _AddCardViewState extends State<_AddCardView> {
                     hint: 'MM/YY',
                     prefixIcon: Icons.date_range_outlined,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [_ExpiryDateFormatter()],
-                    validator: (v) =>
-                        RegExp(r'^(0[1-9]|1[0-2])\/\d{2}$')
-                                .hasMatch(v?.trim() ?? '')
-                            ? null
-                            : 'MM/YY',
+                    inputFormatters: [ExpiryDateInputFormatter()],
+                    validator: validateExpiry,
                   ),
                 ]),
 
@@ -605,18 +630,3 @@ class _ScannedBanner extends StatelessWidget {
 
 /// Formats expiry input as MM/YY: digits only, auto-inserts "/" once a third
 /// digit is typed, capped at 4 digits. e.g. 0 → 02 → 02/9 → 02/29.
-class _ExpiryDateFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    var digits = newValue.text.replaceAll(RegExp(r'\D'), '');
-    if (digits.length > 4) digits = digits.substring(0, 4);
-    final formatted = digits.length > 2
-        ? '${digits.substring(0, 2)}/${digits.substring(2)}'
-        : digits;
-    return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
-  }
-}
