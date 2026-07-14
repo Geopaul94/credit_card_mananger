@@ -40,6 +40,13 @@ class MyApp extends StatelessWidget {
             themeMode: themeMode,
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
+            // Tapping anywhere outside a text field dismisses the keyboard,
+            // app-wide.
+            builder: (context, child) => GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+              child: child,
+            ),
             home: const _AppGate(),
           );
         },
