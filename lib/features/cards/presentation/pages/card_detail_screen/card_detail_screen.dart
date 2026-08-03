@@ -1,13 +1,10 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../../core/auth/auth_cubit.dart';
-import '../../../../../core/auth/biometric_service.dart';
-import '../../../../../core/di/service_locator.dart';
+import '../../../../../core/theme/card_palette.dart';
 import '../../../../../core/ui/responsive_layout.dart';
 import '../../../../../core/utils/card_input.dart';
 import '../../../domain/entities/payment_card.dart';
@@ -40,13 +37,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   // ── Reveal toggles ─────────────────────────────────────────────────────────
   bool _showNumber = false;
 
-  // ── CVV reveal ─────────────────────────────────────────────────────────────
-  // The security code is the one field that costs a fingerprint/PIN to see,
-  // and it hides itself again shortly after — an unlocked phone left on a
-  // table should never sit there displaying a CVV.
-  bool _showCvv = false;
-  Timer? _cvvHideTimer;
-  static const _cvvVisibleFor = Duration(seconds: 30);
+  // The CVV is shown plainly like every other field: the whole app already
+  // sits behind a biometric lock, so a second prompt inside it only added
+  // friction for the one person who owns the card.
 
   // ── Due-date editing ───────────────────────────────────────────────────────
   bool _isDueDayEditing = false;
@@ -59,16 +52,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   late final TextEditingController _notesCtrl;
 
   // ── Gradient ───────────────────────────────────────────────────────────────
-  List<Color> get _gradient {
-    switch (_card.typeLabel) {
-      case 'Debit':
-        return [const Color(0xFF7C3AED), const Color(0xFF5B21B6)];
-      case 'Prepaid':
-        return [const Color(0xFF059669), const Color(0xFF0D9488)];
-      default:
-        return [const Color(0xFF1D4ED8), const Color(0xFF4F46E5)];
-    }
-  }
+  // Same source as the list tile, so a card keeps its colours when opened.
+  List<Color> get _gradient => CardPalette.forCard(_card);
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
   @override
@@ -96,7 +81,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
 
   @override
   void dispose() {
-    _cvvHideTimer?.cancel();
     _flipCtrl.dispose();
     _notesCtrl.dispose();
     _customDayCtrl.dispose();
@@ -121,72 +105,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       ));
   }
 
-  // ── CVV: reveal, copy, edit ────────────────────────────────────────────────
+  // ── CVV: edit / remove ─────────────────────────────────────────────────────
 
-  /// Runs the device fingerprint / face / PIN prompt. True only on success.
-  ///
-  /// That prompt covers the activity on most Android devices, which would
-  /// normally trip the app-lock and bounce the user back to the lock screen.
-  /// Wrapping it in the same "trusted interruption" window the card scanner
-  /// uses tells AuthCubit this backgrounding was ours, not the user leaving.
-  Future<bool> _confirmIdentity() async {
-    final auth = context.read<AuthCubit>();
-    auth.beginTrustedInterruption();
-    try {
-      final result = await sl<BiometricService>().authenticate();
-      return result.success;
-    } finally {
-      auth.endTrustedInterruption();
-    }
-  }
-
-  Future<void> _revealCvv() async {
-    final granted = await _confirmIdentity();
-    if (!mounted) return;
-    if (!granted) {
-      _toast('Not unlocked — the CVV stays hidden.');
-      return;
-    }
-    setState(() => _showCvv = true);
-    // Restart the countdown on every reveal so it always gets a full window.
-    _cvvHideTimer?.cancel();
-    _cvvHideTimer = Timer(_cvvVisibleFor, () {
-      if (mounted) setState(() => _showCvv = false);
-    });
-  }
-
-  void _hideCvv() {
-    _cvvHideTimer?.cancel();
-    setState(() => _showCvv = false);
-  }
-
-  /// Copying puts the code on the clipboard, so it needs the same unlock as
-  /// looking at it — unless it's already on screen from a recent unlock.
-  Future<void> _copyCvv() async {
-    if (!_showCvv) {
-      final granted = await _confirmIdentity();
-      if (!mounted) return;
-      if (!granted) {
-        _toast('Not unlocked — nothing copied.');
-        return;
-      }
-    }
-    _copy(_card.cvv!, 'CVV');
-  }
-
-  /// Adds, changes, or removes the stored code. Editing an existing one
-  /// pre-fills the dialog, which would disclose it — so that path is gated
-  /// too. Adding a code to a card that has none is not.
+  /// Adds, changes, or removes the stored security code.
   Future<void> _editCvv() async {
-    if (_card.hasCvv && !_showCvv) {
-      final granted = await _confirmIdentity();
-      if (!mounted) return;
-      if (!granted) {
-        _toast('Not unlocked — the CVV was not changed.');
-        return;
-      }
-    }
-
     final edit = await showDialog<_CvvEdit>(
       context: context,
       builder: (_) => _CvvEditorDialog(initialValue: _card.cvv),
@@ -218,11 +140,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
 
       final updated = _card.copyWith(clearCvv: true);
       _dispatch(UpdateCardRequested(card: updated));
-      _cvvHideTimer?.cancel();
-      setState(() {
-        _card = updated;
-        _showCvv = false;
-      });
+      setState(() => _card = updated);
       _toast('CVV removed');
       return;
     }
@@ -420,14 +338,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     child: _CardBackFace(
                       card: _card,
                       gradientColors: _gradient,
-                      showCvv: _showCvv,
-                      onToggleCvv: () {
-                        if (_showCvv) {
-                          _hideCvv();
-                        } else {
-                          _revealCvv();
-                        }
-                      },
                     ),
                   ),
           );
@@ -481,24 +391,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
 
     return _DetailRow(
       icon: Icons.lock_outline,
-      label: _showCvv ? 'CVV · hides itself shortly' : 'CVV · unlock to view',
-      value: _showCvv ? _card.cvv! : '•••',
-      onCopy: _copyCvv,
-      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-        _IconBox(
-          icon: _showCvv ? Icons.visibility_off : Icons.visibility,
-          onTap: () {
-            if (_showCvv) {
-              _hideCvv();
-            } else {
-              _revealCvv();
-            }
-          },
-          scheme: scheme,
-        ),
-        const SizedBox(width: 6),
-        _IconBox(icon: Icons.edit_outlined, onTap: _editCvv, scheme: scheme),
-      ]),
+      label: 'CVV',
+      value: _card.cvv!,
+      onCopy: () => _copy(_card.cvv!, 'CVV'),
+      trailing:
+          _IconBox(icon: Icons.edit_outlined, onTap: _editCvv, scheme: scheme),
     );
   }
 
@@ -830,6 +727,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 maxLines: 6,
                 minLines: 4,
                 autofocus: true,
+                textCapitalization: TextCapitalization.sentences,
                 style: const TextStyle(fontSize: 14, height: 1.6),
                 decoration: InputDecoration(
                   hintText:
@@ -1131,14 +1029,10 @@ class _CardBackFace extends StatelessWidget {
   const _CardBackFace({
     required this.card,
     required this.gradientColors,
-    required this.showCvv,
-    required this.onToggleCvv,
   });
 
   final PaymentCard card;
   final List<Color> gradientColors;
-  final bool showCvv;
-  final VoidCallback onToggleCvv;
 
   @override
   Widget build(BuildContext context) {
@@ -1185,24 +1079,12 @@ class _CardBackFace extends StatelessWidget {
                                 fontWeight: FontWeight.w700)),
                         const SizedBox(width: 6),
                         Text(
-                          showCvv ? card.cvv! : '•••',
+                          card.cvv!,
                           style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w800,
                               color: Colors.black87,
                               letterSpacing: 2),
-                        ),
-                        const SizedBox(width: 4),
-                        GestureDetector(
-                          onTap: onToggleCvv,
-                          child: Padding(
-                            padding: const EdgeInsets.all(4),
-                            child: Icon(
-                              showCvv ? Icons.visibility_off : Icons.visibility,
-                              size: 14,
-                              color: Colors.grey.shade500,
-                            ),
-                          ),
                         ),
                       ])
                     : _SignatureLines(),
@@ -1409,7 +1291,6 @@ class _CvvEditorDialog extends StatefulWidget {
 class _CvvEditorDialogState extends State<_CvvEditorDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _ctrl;
-  bool _obscure = true;
 
   bool get _isEditing => widget.initialValue != null;
 
@@ -1448,20 +1329,13 @@ class _CvvEditorDialogState extends State<_CvvEditorDialog> {
             controller: _ctrl,
             autofocus: true,
             keyboardType: TextInputType.number,
-            obscureText: _obscure,
             maxLength: 4,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             validator: validateCvv,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               labelText: 'Security code',
               hintText: '3 digits · 4 on Amex',
               counterText: '',
-              suffixIcon: IconButton(
-                icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off,
-                    size: 20),
-                onPressed: () => setState(() => _obscure = !_obscure),
-                tooltip: _obscure ? 'Show' : 'Hide',
-              ),
             ),
             onFieldSubmitted: (_) => _save(),
           ),

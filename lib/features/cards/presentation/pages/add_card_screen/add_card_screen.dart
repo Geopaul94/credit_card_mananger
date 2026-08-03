@@ -244,6 +244,7 @@ class _AddCardViewState extends State<_AddCardView> {
                     label: 'Bank Name',
                     hint: 'Axis Bank',
                     prefixIcon: Icons.account_balance_outlined,
+                    textCapitalization: TextCapitalization.words,
                   ),
                   _Divider(),
                   _Field(
@@ -251,6 +252,7 @@ class _AddCardViewState extends State<_AddCardView> {
                     label: 'Card Name',
                     hint: 'Flipkart',
                     prefixIcon: Icons.badge_outlined,
+                    textCapitalization: TextCapitalization.words,
                   ),
                   _Divider(),
                   _Field(
@@ -258,6 +260,7 @@ class _AddCardViewState extends State<_AddCardView> {
                     label: 'Card Holder Name',
                     hint: 'Alex Joseph',
                     prefixIcon: Icons.person_outline,
+                    textCapitalization: TextCapitalization.words,
                     validator: (v) =>
                         (v == null || v.trim().isEmpty)
                             ? 'Enter holder name'
@@ -369,18 +372,7 @@ class _AddCardViewState extends State<_AddCardView> {
                       height: 56,
                       color: scheme.outline.withValues(alpha: 0.15),
                     ),
-                    // Rebuilds only when the reveal toggle flips.
-                    Expanded(
-                      child: BlocBuilder<AddCardCubit, AddCardState>(
-                        buildWhen: (p, c) => p.showCvv != c.showCvv,
-                        builder: (context, state) => _CvvField(
-                          controller: _cvvCtrl,
-                          showCvv: state.showCvv,
-                          onToggle: () =>
-                              context.read<AddCardCubit>().toggleCvv(),
-                        ),
-                      ),
-                    ),
+                    Expanded(child: _CvvField(controller: _cvvCtrl)),
                   ]),
                 ]),
 
@@ -537,6 +529,7 @@ class _Field extends StatelessWidget {
     this.validator,
     this.keyboardType,
     this.inputFormatters,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   final TextEditingController controller;
@@ -547,12 +540,17 @@ class _Field extends StatelessWidget {
   final TextInputType? keyboardType;
   final List<TextInputFormatter>? inputFormatters;
 
+  /// Name fields open the keyboard already shifted to a capital letter, so
+  /// "axis bank" doesn't have to be corrected afterwards.
+  final TextCapitalization textCapitalization;
+
   @override
   Widget build(BuildContext context) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,
+      textCapitalization: textCapitalization,
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
@@ -570,41 +568,26 @@ class _Field extends StatelessWidget {
   }
 }
 
-/// The security code field. Obscured by default so the digits aren't left on
-/// screen while the rest of the form is filled in; the eye reveals them so a
-/// typo can be checked before saving.
+/// The security code field. Shown as plain digits — the app is already behind
+/// a biometric lock, and hiding it from its own owner only invites typos.
 class _CvvField extends StatelessWidget {
-  const _CvvField({
-    required this.controller,
-    required this.showCvv,
-    required this.onToggle,
-  });
+  const _CvvField({required this.controller});
 
   final TextEditingController controller;
-  final bool showCvv;
-  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
     return TextFormField(
       controller: controller,
       keyboardType: TextInputType.number,
-      obscureText: !showCvv,
       maxLength: 4,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
       validator: validateCvv,
       decoration: InputDecoration(
         labelText: 'CVV (optional)',
-        hintText: '•••',
+        hintText: '123',
         counterText: '',
         prefixIcon: const Icon(Icons.lock_outline, size: 20),
-        suffixIcon: GestureDetector(
-          onTap: onToggle,
-          child: Icon(
-            showCvv ? Icons.visibility_off : Icons.visibility,
-            size: 20,
-          ),
-        ),
         border: InputBorder.none,
         enabledBorder: InputBorder.none,
         focusedBorder: InputBorder.none,
@@ -629,8 +612,8 @@ class _CvvNote extends StatelessWidget {
         const SizedBox(width: 6),
         Expanded(
           child: Text(
-            'CVV is optional. It stays encrypted on this device and asks for '
-            'your fingerprint or PIN every time you view it.',
+            'CVV is optional. It stays encrypted on this device and never '
+            'leaves it.',
             style: TextStyle(
               fontSize: 11.5,
               height: 1.45,

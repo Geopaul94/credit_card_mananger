@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/theme/card_palette.dart';
 import '../../../../core/ui/responsive_layout.dart';
 import '../../domain/entities/payment_card.dart';
 import '../bloc/card_overview/card_overview_bloc.dart';
 import '../pages/card_detail_screen/card_detail_screen.dart';
+import 'card_brand.dart';
 
 const double _kCardHeight = 220;
 
@@ -15,17 +17,6 @@ class CardTile extends StatelessWidget {
   final PaymentCard card;
   final bool isPaid;
 
-  List<Color> get _gradientColors {
-    switch (card.typeLabel) {
-      case 'Debit':
-        return [const Color(0xFF7C3AED), const Color(0xFF5B21B6)];
-      case 'Prepaid':
-        return [const Color(0xFF059669), const Color(0xFF0D9488)];
-      default:
-        return [const Color(0xFF1D4ED8), const Color(0xFF4F46E5)];
-    }
-  }
-
   void _openDetail(BuildContext context) {
     Navigator.push(
       context,
@@ -35,8 +26,10 @@ class CardTile extends StatelessWidget {
           child: CardDetailScreen(card: card),
         ),
         transitionsBuilder: (ctx, anim, _, child) {
-          final curved =
-              CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+          final curved = CurvedAnimation(
+            parent: anim,
+            curve: Curves.easeOutCubic,
+          );
           return FadeTransition(
             opacity: curved,
             child: SlideTransition(
@@ -61,7 +54,7 @@ class CardTile extends StatelessWidget {
         onTap: () => _openDetail(context),
         child: _CardFront(
           card: card,
-          gradientColors: _gradientColors,
+          gradientColors: CardPalette.forCard(card),
           isPaid: isPaid,
         ),
       ),
@@ -108,134 +101,145 @@ class CardFrontFace extends StatelessWidget {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(22),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
         children: [
-          // Bank name + type badge + paid badge
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(
-                child: Text(
-                  card.displayTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    letterSpacing: 0.4,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              if (isPaid)
-                _Badge(
-                  label: 'Paid ✓',
-                  color: Colors.greenAccent,
-                  bg: Colors.green.withValues(alpha: 0.3),
-                )
-              else
-                _TypeBadge(label: card.typeLabel),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // EMV chip
-          _ChipIcon(),
-          const SizedBox(height: 16),
-          // Masked card number
-          Text(
-            _masked,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              letterSpacing: 2.8,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const Spacer(),
-          // Holder + expiry + tap hint
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'CARD HOLDER',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.55),
-                        fontSize: 9,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      card.holderName.toUpperCase(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        letterSpacing: 1.2,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+          // Soft light falling across the top-left, so the gradient reads as a
+          // physical card catching light rather than a flat rectangle.
+          Positioned(
+            top: -70,
+            left: -50,
+            child: Container(
+              width: 210,
+              height: 210,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    Colors.white.withValues(alpha: 0.16),
+                    Colors.white.withValues(alpha: 0),
                   ],
                 ),
               ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'VALID THRU',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.55),
-                          fontSize: 9,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        card.expiryDate,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Bank name + type badge + paid badge
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        card.displayTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 13,
-                          letterSpacing: 1.2,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          letterSpacing: 0.4,
                         ),
                       ),
-                    ],
+                    ),
+                    const SizedBox(width: 8),
+                    if (isPaid)
+                      _Badge(
+                        label: 'Paid ✓',
+                        color: Colors.greenAccent,
+                        bg: Colors.green.withValues(alpha: 0.3),
+                      )
+                    else
+                      _TypeBadge(label: card.typeLabel),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // EMV chip
+                _ChipIcon(),
+                const SizedBox(height: 16),
+                // Masked card number
+                Text(
+                  _masked,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    letterSpacing: 2.8,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(width: 12),
-                  // Tap-hint eye icon
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.3),
+                ),
+                const Spacer(),
+                // Holder + expiry + tap hint
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'CARD HOLDER',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.55),
+                              fontSize: 9,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            card.holderName.toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              letterSpacing: 1.2,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: const Icon(
-                      Icons.remove_red_eye_outlined,
-                      color: Colors.white,
-                      size: 17,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'VALID THRU',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.55),
+                                fontSize: 9,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              card.expiryDate,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                letterSpacing: 1.2,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 14),
+                        // Payment network, where it sits on a real card.
+                        CardBrandMark(cardNumber: card.cardNumber),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -280,8 +284,7 @@ class _TypeBadge extends StatelessWidget {
 }
 
 class _Badge extends StatelessWidget {
-  const _Badge(
-      {required this.label, required this.color, required this.bg});
+  const _Badge({required this.label, required this.color, required this.bg});
   final String label;
   final Color color;
   final Color bg;
@@ -298,7 +301,10 @@ class _Badge extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-            color: color, fontWeight: FontWeight.w700, fontSize: 11),
+          color: color,
+          fontWeight: FontWeight.w700,
+          fontSize: 11,
+        ),
       ),
     );
   }
@@ -330,12 +336,21 @@ class _ChipPainter extends CustomPainter {
       ..color = Colors.amber.shade600
       ..strokeWidth = 0.8
       ..style = PaintingStyle.stroke;
-    canvas.drawLine(Offset(0, size.height * 0.33),
-        Offset(size.width, size.height * 0.33), paint);
-    canvas.drawLine(Offset(0, size.height * 0.66),
-        Offset(size.width, size.height * 0.66), paint);
-    canvas.drawLine(Offset(size.width * 0.5, 0),
-        Offset(size.width * 0.5, size.height), paint);
+    canvas.drawLine(
+      Offset(0, size.height * 0.33),
+      Offset(size.width, size.height * 0.33),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(0, size.height * 0.66),
+      Offset(size.width, size.height * 0.66),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(size.width * 0.5, 0),
+      Offset(size.width * 0.5, size.height),
+      paint,
+    );
   }
 
   @override
