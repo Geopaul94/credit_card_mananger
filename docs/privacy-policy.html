@@ -13,7 +13,7 @@
 </head>
 <body>
 <h1>Card Vault — Privacy Policy</h1>
-<p class="updated">Last updated: 12 July 2026</p>
+<p class="updated">Last updated: 3 August 2026</p>
 
 <p>Card Vault ("the app") is a personal card organizer published by Ghonestapps.
 This policy explains what data the app handles and how. The short version:
@@ -23,10 +23,20 @@ nothing.</strong></p>
 <h2>Data the app stores</h2>
 <p>The app lets you save details of your payment cards: card number, holder name,
 expiry date, bank and card name, an optional payment due day, and optional notes.
-The app deliberately does <strong>not</strong> collect or store CVV/CVC codes or PINs.</p>
+The app never stores card PINs or online-banking passwords.</p>
 <p>All card data is stored <strong>only on your device</strong>, encrypted with
 AES-256. The encryption key is protected by your device's secure keystore. We —
 the developers — have no server and no access to any of your data.</p>
+
+<h2>Security code (CVV)</h2>
+<p>You may <strong>optionally</strong> save the security code printed on a card.
+It is entirely your choice: leave the field blank and no code is stored, and you
+can remove a saved code at any time from the card's detail screen.</p>
+<p>When you do save one, it is encrypted with the rest of the card data on your
+device, it is hidden by default, and <strong>viewing or copying it requires your
+fingerprint, face, or device PIN every time</strong>. A revealed code hides itself
+again automatically after a short time. The code is never transmitted to us or to
+anyone else — as with all other card data, we have no server and cannot see it.</p>
 
 <h2>Biometric lock</h2>
 <p>The app is locked behind your device's fingerprint, face, or screen-lock
@@ -37,7 +47,9 @@ sees, stores, or transmits your biometric data.</p>
 <p>You can optionally photograph a card to fill in its details automatically.
 Text recognition runs <strong>on your device</strong> via Google ML Kit. The photo
 is processed in memory and <strong>deleted immediately</strong> after recognition —
-it is never stored or uploaded by the app.</p>
+it is never stored or uploaded by the app. If you photograph the back of a card,
+recognition may also read the security code into the CVV field, which you can
+clear before saving.</p>
 
 <h2>Google Drive backup (optional)</h2>
 <p>You may optionally sign in with your Google account to back up your card data.
@@ -56,7 +68,8 @@ These are generated locally; no data leaves your phone.</p>
   <li>No accounts, no registration, no server of ours</li>
   <li>No analytics, tracking, or advertising SDKs</li>
   <li>No selling, sharing, or transmitting of your personal data to anyone</li>
-  <li>No CVV/PIN storage of any kind</li>
+  <li>No storage of card PINs or banking passwords</li>
+  <li>No card data used for payments — the app only shows you what you saved</li>
 </ul>
 
 <h2>Data deletion</h2>
