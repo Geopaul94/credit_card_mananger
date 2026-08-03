@@ -18,6 +18,7 @@ class AddCardRequested extends CardOverviewEvent {
     required this.cardNumber,
     required this.expiryDate,
     required this.typeLabel,
+    this.cvv,
     this.bankName,
     this.cardName,
     this.dueDay,
@@ -27,6 +28,7 @@ class AddCardRequested extends CardOverviewEvent {
   final String cardNumber;
   final String expiryDate;
   final String typeLabel;
+  final String? cvv; // optional — null when the user chose not to store it
   final String? bankName;
   final String? cardName;
   final int? dueDay;
@@ -37,6 +39,7 @@ class AddCardRequested extends CardOverviewEvent {
         cardNumber,
         expiryDate,
         typeLabel,
+        cvv,
         bankName,
         cardName,
         dueDay,

@@ -11,6 +11,7 @@ class AddCardState extends Equatable {
     this.selectedDueDay,
     this.isScanning = false,
     this.wasScanned = false,
+    this.showCvv = false,
     this.scanResult,
   });
 
@@ -20,6 +21,10 @@ class AddCardState extends Equatable {
   final int? selectedDueDay;
   final bool isScanning;
   final bool wasScanned;
+
+  /// Whether the CVV field shows its digits. Only ever true while the user is
+  /// still typing the card in — it resets every time the screen is opened.
+  final bool showCvv;
   final CardScanResult? scanResult; // accumulates across front/back scans
 
   int? get effectiveDueDay => selectedDueDay;
@@ -30,6 +35,7 @@ class AddCardState extends Equatable {
     bool clearDueDay = false,
     bool? isScanning,
     bool? wasScanned,
+    bool? showCvv,
     CardScanResult? scanResult,
     bool clearScan = false,
   }) {
@@ -39,13 +45,14 @@ class AddCardState extends Equatable {
           clearDueDay ? null : (selectedDueDay ?? this.selectedDueDay),
       isScanning: isScanning ?? this.isScanning,
       wasScanned: wasScanned ?? this.wasScanned,
+      showCvv: showCvv ?? this.showCvv,
       scanResult: clearScan ? null : (scanResult ?? this.scanResult),
     );
   }
 
   @override
   List<Object?> get props =>
-      [cardType, selectedDueDay, isScanning, wasScanned, scanResult];
+      [cardType, selectedDueDay, isScanning, wasScanned, showCvv, scanResult];
 }
 
 // ─── Cubit ────────────────────────────────────────────────────────────────────
@@ -64,6 +71,10 @@ class AddCardCubit extends Cubit<AddCardState> {
   void selectDueDay(int day) => emit(state.copyWith(selectedDueDay: day));
 
   void clearDueDay() => emit(state.copyWith(clearDueDay: true));
+
+  // ── CVV visibility ────────────────────────────────────────────────────────
+
+  void toggleCvv() => emit(state.copyWith(showCvv: !state.showCvv));
 
   // ── Scan front / back ─────────────────────────────────────────────────────
   // Each captures one side, OCRs it, and merges the result into [scanResult]

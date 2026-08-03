@@ -1,10 +1,15 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../../core/auth/auth_cubit.dart';
+import '../../../../../core/auth/biometric_service.dart';
+import '../../../../../core/di/service_locator.dart';
 import '../../../../../core/ui/responsive_layout.dart';
+import '../../../../../core/utils/card_input.dart';
 import '../../../domain/entities/payment_card.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../bloc/card_overview/card_overview_event.dart';
@@ -34,6 +39,14 @@ class _CardDetailScreenState extends State<CardDetailScreen>
 
   // ── Reveal toggles ─────────────────────────────────────────────────────────
   bool _showNumber = false;
+
+  // ── CVV reveal ─────────────────────────────────────────────────────────────
+  // The security code is the one field that costs a fingerprint/PIN to see,
+  // and it hides itself again shortly after — an unlocked phone left on a
+  // table should never sit there displaying a CVV.
+  bool _showCvv = false;
+  Timer? _cvvHideTimer;
+  static const _cvvVisibleFor = Duration(seconds: 30);
 
   // ── Due-date editing ───────────────────────────────────────────────────────
   bool _isDueDayEditing = false;
@@ -83,6 +96,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
 
   @override
   void dispose() {
+    _cvvHideTimer?.cancel();
     _flipCtrl.dispose();
     _notesCtrl.dispose();
     _customDayCtrl.dispose();
@@ -101,6 +115,130 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           const SizedBox(width: 8),
           Text('$label copied'),
         ]),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+  }
+
+  // ── CVV: reveal, copy, edit ────────────────────────────────────────────────
+
+  /// Runs the device fingerprint / face / PIN prompt. True only on success.
+  ///
+  /// That prompt covers the activity on most Android devices, which would
+  /// normally trip the app-lock and bounce the user back to the lock screen.
+  /// Wrapping it in the same "trusted interruption" window the card scanner
+  /// uses tells AuthCubit this backgrounding was ours, not the user leaving.
+  Future<bool> _confirmIdentity() async {
+    final auth = context.read<AuthCubit>();
+    auth.beginTrustedInterruption();
+    try {
+      final result = await sl<BiometricService>().authenticate();
+      return result.success;
+    } finally {
+      auth.endTrustedInterruption();
+    }
+  }
+
+  Future<void> _revealCvv() async {
+    final granted = await _confirmIdentity();
+    if (!mounted) return;
+    if (!granted) {
+      _toast('Not unlocked — the CVV stays hidden.');
+      return;
+    }
+    setState(() => _showCvv = true);
+    // Restart the countdown on every reveal so it always gets a full window.
+    _cvvHideTimer?.cancel();
+    _cvvHideTimer = Timer(_cvvVisibleFor, () {
+      if (mounted) setState(() => _showCvv = false);
+    });
+  }
+
+  void _hideCvv() {
+    _cvvHideTimer?.cancel();
+    setState(() => _showCvv = false);
+  }
+
+  /// Copying puts the code on the clipboard, so it needs the same unlock as
+  /// looking at it — unless it's already on screen from a recent unlock.
+  Future<void> _copyCvv() async {
+    if (!_showCvv) {
+      final granted = await _confirmIdentity();
+      if (!mounted) return;
+      if (!granted) {
+        _toast('Not unlocked — nothing copied.');
+        return;
+      }
+    }
+    _copy(_card.cvv!, 'CVV');
+  }
+
+  /// Adds, changes, or removes the stored code. Editing an existing one
+  /// pre-fills the dialog, which would disclose it — so that path is gated
+  /// too. Adding a code to a card that has none is not.
+  Future<void> _editCvv() async {
+    if (_card.hasCvv && !_showCvv) {
+      final granted = await _confirmIdentity();
+      if (!mounted) return;
+      if (!granted) {
+        _toast('Not unlocked — the CVV was not changed.');
+        return;
+      }
+    }
+
+    final edit = await showDialog<_CvvEdit>(
+      context: context,
+      builder: (_) => _CvvEditorDialog(initialValue: _card.cvv),
+    );
+    if (edit == null || !mounted) return;
+
+    if (edit.remove) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Remove CVV?'),
+          content: const Text(
+              'The security code for this card will be deleted. Everything '
+              'else about the card stays as it is.'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Keep it')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(ctx).colorScheme.error),
+              child: const Text('Remove'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+
+      final updated = _card.copyWith(clearCvv: true);
+      _dispatch(UpdateCardRequested(card: updated));
+      _cvvHideTimer?.cancel();
+      setState(() {
+        _card = updated;
+        _showCvv = false;
+      });
+      _toast('CVV removed');
+      return;
+    }
+
+    final updated = _card.copyWith(cvv: edit.value);
+    _dispatch(UpdateCardRequested(card: updated));
+    setState(() => _card = updated);
+    _toast('CVV saved');
+  }
+
+  /// Short confirmation message — same look as the "copied" snackbar.
+  void _toast(String message) {
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(
+        content: Text(message),
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -282,6 +420,14 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                     child: _CardBackFace(
                       card: _card,
                       gradientColors: _gradient,
+                      showCvv: _showCvv,
+                      onToggleCvv: () {
+                        if (_showCvv) {
+                          _hideCvv();
+                        } else {
+                          _revealCvv();
+                        }
+                      },
                     ),
                   ),
           );
@@ -317,6 +463,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         onCopy: () => _copy(_card.expiryDate, 'Expiry'),
       ),
       _RowDivider(),
+      _buildCvvRow(scheme),
+      _RowDivider(),
       _DetailRow(
         icon: Icons.person_outline,
         label: 'Card Holder',
@@ -324,6 +472,34 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         onCopy: () => _copy(_card.holderName, 'Holder name'),
       ),
     ]);
+  }
+
+  /// Three states: no code stored (offer to add one), stored and hidden,
+  /// stored and revealed.
+  Widget _buildCvvRow(ColorScheme scheme) {
+    if (!_card.hasCvv) return _AddCvvRow(onTap: _editCvv);
+
+    return _DetailRow(
+      icon: Icons.lock_outline,
+      label: _showCvv ? 'CVV · hides itself shortly' : 'CVV · unlock to view',
+      value: _showCvv ? _card.cvv! : '•••',
+      onCopy: _copyCvv,
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        _IconBox(
+          icon: _showCvv ? Icons.visibility_off : Icons.visibility,
+          onTap: () {
+            if (_showCvv) {
+              _hideCvv();
+            } else {
+              _revealCvv();
+            }
+          },
+          scheme: scheme,
+        ),
+        const SizedBox(width: 6),
+        _IconBox(icon: Icons.edit_outlined, onTap: _editCvv, scheme: scheme),
+      ]),
+    );
   }
 
   // ── Due-date card ─────────────────────────────────────────────────────────
@@ -955,10 +1131,14 @@ class _CardBackFace extends StatelessWidget {
   const _CardBackFace({
     required this.card,
     required this.gradientColors,
+    required this.showCvv,
+    required this.onToggleCvv,
   });
 
   final PaymentCard card;
   final List<Color> gradientColors;
+  final bool showCvv;
+  final VoidCallback onToggleCvv;
 
   @override
   Widget build(BuildContext context) {
@@ -992,12 +1172,40 @@ class _CardBackFace extends StatelessWidget {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(4)),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: List.generate(
-                      3,
-                      (_) => Container(height: 1, color: Colors.grey.shade300)),
-                ),
+                // With a code stored the strip carries it (as a real card
+                // does); without one it's just the blank signature panel.
+                child: card.hasCvv
+                    ? Row(children: [
+                        Expanded(child: _SignatureLines()),
+                        const SizedBox(width: 10),
+                        Text('CVV',
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey.shade500,
+                                fontWeight: FontWeight.w700)),
+                        const SizedBox(width: 6),
+                        Text(
+                          showCvv ? card.cvv! : '•••',
+                          style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.black87,
+                              letterSpacing: 2),
+                        ),
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: onToggleCvv,
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(
+                              showCvv ? Icons.visibility_off : Icons.visibility,
+                              size: 14,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ),
+                      ])
+                    : _SignatureLines(),
               ),
             ),
             Padding(
@@ -1026,6 +1234,18 @@ class _CardBackFace extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The three ruled lines of a signature panel.
+class _SignatureLines extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: List.generate(
+          3, (_) => Container(height: 1, color: Colors.grey.shade300)),
     );
   }
 }
@@ -1112,6 +1332,165 @@ class _DetailRow extends StatelessWidget {
         if (trailing != null) ...[trailing!, const SizedBox(width: 6)],
         _IconBox(icon: Icons.copy, onTap: onCopy, scheme: scheme),
       ]),
+    );
+  }
+}
+
+// ─── CVV: empty-state row + editor ────────────────────────────────────────────
+
+/// Shown when no security code is stored — including on every card saved
+/// before this feature existed.
+class _AddCvvRow extends StatelessWidget {
+  const _AddCvvRow({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: scheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.lock_outline, size: 17, color: scheme.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('CVV',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w500)),
+              const SizedBox(height: 2),
+              Text('Not saved',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurfaceVariant)),
+            ]),
+          ),
+          _PillButton(label: 'Add', color: scheme.primary, onTap: onTap),
+        ]),
+      ),
+    );
+  }
+}
+
+/// What the CVV editor hands back: either a code to save, or a removal.
+class _CvvEdit {
+  const _CvvEdit.save(this.value) : remove = false;
+  const _CvvEdit.remove()
+      : value = null,
+        remove = true;
+
+  final String? value;
+  final bool remove;
+}
+
+class _CvvEditorDialog extends StatefulWidget {
+  const _CvvEditorDialog({this.initialValue});
+
+  /// Existing code, pre-filled for editing. Null when adding a new one.
+  final String? initialValue;
+
+  @override
+  State<_CvvEditorDialog> createState() => _CvvEditorDialogState();
+}
+
+class _CvvEditorDialogState extends State<_CvvEditorDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _ctrl;
+  bool _obscure = true;
+
+  bool get _isEditing => widget.initialValue != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.initialValue ?? '');
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    final digits = _ctrl.text.replaceAll(RegExp(r'\D'), '');
+    // An emptied field on an existing card means "remove it", which the
+    // caller confirms before anything is discarded.
+    Navigator.pop(
+      context,
+      digits.isEmpty ? const _CvvEdit.remove() : _CvvEdit.save(digits),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: Text(_isEditing ? 'Edit CVV' : 'Add CVV'),
+      content: Form(
+        key: _formKey,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextFormField(
+            controller: _ctrl,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            obscureText: _obscure,
+            maxLength: 4,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            validator: validateCvv,
+            decoration: InputDecoration(
+              labelText: 'Security code',
+              hintText: '3 digits · 4 on Amex',
+              counterText: '',
+              suffixIcon: IconButton(
+                icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off,
+                    size: 20),
+                onPressed: () => setState(() => _obscure = !_obscure),
+                tooltip: _obscure ? 'Show' : 'Hide',
+              ),
+            ),
+            onFieldSubmitted: (_) => _save(),
+          ),
+          const SizedBox(height: 10),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.shield_outlined,
+                size: 14, color: scheme.onSurfaceVariant),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                _isEditing
+                    ? 'Clear the field and save to remove the stored code.'
+                    : 'Stored encrypted on this device. Viewing it later asks '
+                        'for your fingerprint or PIN.',
+                style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.45,
+                    color: scheme.onSurfaceVariant),
+              ),
+            ),
+          ]),
+        ]),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel')),
+        FilledButton(onPressed: _save, child: const Text('Save')),
+      ],
     );
   }
 }

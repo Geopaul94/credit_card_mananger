@@ -124,6 +124,19 @@ String? validateExpiry(String? value) {
   return null;
 }
 
+/// Validates a security code. Storing one is optional, so an empty value is
+/// accepted; anything typed must be the 3 digits printed on the signature
+/// strip (4 on American Express).
+String? validateCvv(String? value) {
+  final digits = (value ?? '').replaceAll(RegExp(r'\D'), '');
+  if (digits.isEmpty) return null; // optional — leaving it blank is fine
+  if (digits.length < 3) {
+    return 'Only ${digits.length} digit${digits.length == 1 ? '' : 's'} — a CVV has 3 (4 on Amex)';
+  }
+  if (digits.length > 4) return 'A CVV is at most 4 digits';
+  return null;
+}
+
 /// True when a well-formed MM/YY date is already in the past. A card expires
 /// at the END of its printed month.
 bool isExpiredDate(String value) {

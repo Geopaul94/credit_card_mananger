@@ -109,6 +109,8 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
         cardNumber: event.cardNumber.replaceAll(RegExp(r'\D'), ''),
         expiryDate: event.expiryDate.trim(),
         typeLabel: event.typeLabel.trim(),
+        // Store digits only, and store nothing at all when left blank.
+        cvv: _normalizeCvv(event.cvv),
         bankName: (event.bankName?.trim().isEmpty ?? true)
             ? null
             : smartTitleCase(event.bankName!),
@@ -136,7 +138,11 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
   ) async {
     try {
       // Normalise names on edit too, so typed-over values stay clean.
+      // A null cvv here leaves the stored one untouched (copyWith semantics) —
+      // removal is expressed with clearCvv at the call site, which arrives as
+      // an already-null field on a card that also had none.
       final normalized = event.card.copyWith(
+        cvv: _normalizeCvv(event.card.cvv),
         holderName: smartTitleCase(event.card.holderName),
         bankName: event.card.bankName == null
             ? null
@@ -172,6 +178,13 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
     } catch (_) {
       emit(state.copyWith(errorMessage: 'Unable to update card.'));
     }
+  }
+
+  /// Keeps only the digits of a security code, and treats "nothing typed" as
+  /// not stored at all rather than as an empty string.
+  static String? _normalizeCvv(String? raw) {
+    final digits = (raw ?? '').replaceAll(RegExp(r'\D'), '');
+    return digits.isEmpty ? null : digits;
   }
 
   // ── Delete card ───────────────────────────────────────────────────────────

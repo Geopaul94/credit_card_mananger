@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -11,6 +12,7 @@ class CardScanResult {
     this.holderName,
     this.cardNumber,
     this.expiryDate,
+    this.cvv,
     this.bankName,
     this.cardName,
   });
@@ -23,6 +25,9 @@ class CardScanResult {
   /// MM/YY format
   final String? expiryDate;
 
+  /// 3–4 digit security code, read from the back of the card.
+  final String? cvv;
+
   /// Issuing bank, matched from a keyword list.
   final String? bankName;
 
@@ -33,6 +38,7 @@ class CardScanResult {
       holderName != null ||
       cardNumber != null ||
       expiryDate != null ||
+      cvv != null ||
       bankName != null ||
       cardName != null;
 
@@ -42,6 +48,7 @@ class CardScanResult {
         holderName: holderName ?? other.holderName,
         cardNumber: cardNumber ?? other.cardNumber,
         expiryDate: expiryDate ?? other.expiryDate,
+        cvv: cvv ?? other.cvv,
         bankName: bankName ?? other.bankName,
         cardName: cardName ?? other.cardName,
       );
@@ -86,11 +93,12 @@ class CardScanService {
     );
   }
 
-  // ── Back: bank / card-number fallback ──────────────────────────────────────
+  // ── Back: CVV (plus bank / card-number fallback) ───────────────────────────
 
   CardScanResult _parseBack(String text) {
     final normalized = text.replaceAll(RegExp(r'[ \t]+'), ' ');
     return CardScanResult(
+      cvv: parseCvv(text),
       cardNumber: _parseNumber(normalized),
       bankName: _detectBank(text),
     );
@@ -134,6 +142,48 @@ class CardScanService {
       final words =
           trimmed.split(RegExp(r'\s+')).where((w) => w.length >= 2).toList();
       if (words.length >= 2) return words.join(' ');
+    }
+    return null;
+  }
+
+  /// Reads the security code from the back of the card.
+  ///
+  /// OCR on a card back is noisy: the signature panel usually carries the last
+  /// four digits of the card number right beside the code, and the printed
+  /// number itself often bleeds into the frame. So this works from
+  /// most-certain to least:
+  ///   1. a value explicitly labelled CVV / CVC / CVV2 / CID / CSC
+  ///   2. the signature-panel pattern "9012 123" (last four, then the code)
+  ///   3. a 3-digit group standing alone on its own line
+  ///
+  /// Lines that look like an expiry or an issue date are skipped, and only a
+  /// *labelled* match may be 4 digits — a bare 4-digit number on a card back
+  /// is far more likely to be card-number digits than an Amex code.
+  /// Returning null is a perfectly good outcome: the user types it instead.
+  @visibleForTesting
+  static String? parseCvv(String text) {
+    final labelled = RegExp(
+      r'(?:cvv2?|cvc2?|cid|csc)\D{0,8}(\d{3,4})\b',
+      caseSensitive: false,
+    ).firstMatch(text);
+    if (labelled != null) return labelled.group(1);
+
+    for (final rawLine in text.split('\n')) {
+      final line = rawLine.trim();
+      if (line.isEmpty) continue;
+      // Expiry / "member since" lines carry 2- and 4-digit groups we must
+      // never mistake for a security code.
+      if (line.contains('/')) continue;
+      if (RegExp(r'valid|thru|through|exp|since|member', caseSensitive: false)
+          .hasMatch(line)) {
+        continue;
+      }
+
+      final panel = RegExp(r'^(\d{4})\s+(\d{3})$').firstMatch(line);
+      if (panel != null) return panel.group(2);
+
+      final lone = RegExp(r'^(\d{3})$').firstMatch(line);
+      if (lone != null) return lone.group(1);
     }
     return null;
   }

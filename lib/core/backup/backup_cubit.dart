@@ -243,6 +243,9 @@ class BackupCubit extends Cubit<BackupState> {
                 'cardNumber': c.cardNumber,
                 'expiryDate': c.expiryDate,
                 'typeLabel': c.typeLabel,
+                // Included so a restore on a new phone is lossless. The whole
+                // payload is encrypted before it ever reaches Drive.
+                if (c.cvv != null) 'cvv': c.cvv,
                 if (c.bankName != null) 'bankName': c.bankName,
                 if (c.cardName != null) 'cardName': c.cardName,
                 if (c.dueDay != null) 'dueDay': c.dueDay,
@@ -265,6 +268,8 @@ class BackupCubit extends Cubit<BackupState> {
         cardNumber: m['cardNumber'] as String,
         expiryDate: m['expiryDate'] as String,
         typeLabel: m['typeLabel'] as String,
+        // Backups taken before CVV support simply have no 'cvv' key.
+        cvv: m['cvv'] as String?,
         bankName: m['bankName'] as String?,
         cardName: m['cardName'] as String?,
         dueDay: m['dueDay'] as int?,

@@ -7,6 +7,7 @@ class PaymentCard extends Equatable {
     required this.cardNumber,
     required this.expiryDate,
     required this.typeLabel,
+    this.cvv,
     this.bankName,
     this.cardName,
     this.dueDay,
@@ -18,10 +19,18 @@ class PaymentCard extends Equatable {
   final String cardNumber; // digits only
   final String expiryDate; // MM/YY
   final String typeLabel;
+
+  /// Security code, 3 digits (4 on Amex). Optional — null means the user
+  /// chose not to store it, and every card saved before this feature existed
+  /// loads with null. Never assume it is present.
+  final String? cvv;
   final String? bankName;
   final String? cardName; // co-brand / product name, e.g. "Flipkart"
   final int? dueDay; // monthly due date — null means no reminder set
   final String? notes; // free-text notes (bank login, reminders, etc.)
+
+  /// True when a security code is stored for this card.
+  bool get hasCvv => cvv != null && cvv!.trim().isNotEmpty;
 
   /// Title shown in lists / app bar: "Bank - Card Name" when both exist,
   /// otherwise whichever is present (falling back to the card type).
@@ -123,6 +132,8 @@ class PaymentCard extends Equatable {
     String? cardNumber,
     String? expiryDate,
     String? typeLabel,
+    String? cvv,
+    bool clearCvv = false,
     String? bankName,
     bool clearBankName = false,
     String? cardName,
@@ -138,6 +149,7 @@ class PaymentCard extends Equatable {
       cardNumber: cardNumber ?? this.cardNumber,
       expiryDate: expiryDate ?? this.expiryDate,
       typeLabel: typeLabel ?? this.typeLabel,
+      cvv: clearCvv ? null : (cvv ?? this.cvv),
       bankName: clearBankName ? null : (bankName ?? this.bankName),
       cardName: clearCardName ? null : (cardName ?? this.cardName),
       dueDay: clearDueDay ? null : (dueDay ?? this.dueDay),
@@ -152,6 +164,7 @@ class PaymentCard extends Equatable {
         cardNumber,
         expiryDate,
         typeLabel,
+        cvv,
         bankName,
         cardName,
         dueDay,

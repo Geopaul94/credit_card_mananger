@@ -103,6 +103,9 @@ class SecureCardStorage {
         'cardNumber': c.cardNumber,
         'expiryDate': c.expiryDate,
         'typeLabel': c.typeLabel,
+        // Omitted entirely when the user didn't store a CVV, so the blob never
+        // carries an empty security-code key.
+        if (c.cvv != null) 'cvv': c.cvv,
         if (c.bankName != null) 'bankName': c.bankName,
         if (c.cardName != null) 'cardName': c.cardName,
         if (c.dueDay != null) 'dueDay': c.dueDay,
@@ -115,6 +118,8 @@ class SecureCardStorage {
         cardNumber: m['cardNumber'] as String,
         expiryDate: m['expiryDate'] as String,
         typeLabel: m['typeLabel'] as String,
+        // Cards saved before CVV support have no 'cvv' key — reads as null.
+        cvv: m['cvv'] as String?,
         bankName: m['bankName'] as String?,
         cardName: m['cardName'] as String?,
         dueDay: m['dueDay'] as int?,
