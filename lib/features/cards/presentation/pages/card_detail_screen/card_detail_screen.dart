@@ -294,15 +294,15 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             children: [
               _buildCardVisual(),
               SizedBox(height: context.spacing(24)),
-              _sectionLabel(context, 'CARD DETAILS'),
+              const SectionLabel(label: 'CARD DETAILS'),
               SizedBox(height: context.spacing(8)),
               _buildDetailsCard(scheme),
               SizedBox(height: context.spacing(20)),
-              _sectionLabel(context, 'PAYMENT DUE DATE'),
+              const SectionLabel(label: 'PAYMENT DUE DATE'),
               SizedBox(height: context.spacing(8)),
               _buildDueDateCard(scheme),
               SizedBox(height: context.spacing(20)),
-              _sectionLabel(context, 'PRIVATE NOTES'),
+              const SectionLabel(label: 'PRIVATE NOTES'),
               SizedBox(height: context.spacing(8)),
               _buildNotesCard(scheme),
               SizedBox(height: context.spacing(20)),
@@ -430,8 +430,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                   _card.dueDay != null
                       ? 'Due on the ${_card.dueDayLabel} every month'
                       : 'No reminder set',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 14, color: scheme.onSurface),
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
               PillButton(
@@ -483,7 +482,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               const SizedBox(height: 12),
               Text('— or choose a quick day —',
                   style:
-                      TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+                      Theme.of(context).textTheme.labelSmall,
                   textAlign: TextAlign.center),
               const SizedBox(height: 10),
 
@@ -649,10 +648,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               const SizedBox(width: 8),
               Expanded(
                 child: Text('Private notes',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                        color: scheme.onSurface)),
+                    style: Theme.of(context).textTheme.titleSmall),
               ),
               if (!_isNotesEditing) ...[
                 // Copy button (only if notes exist)
@@ -704,10 +700,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       ),
                       child: Text(
                         _card.notes!,
-                        style: TextStyle(
-                            fontSize: 14,
-                            height: 1.6,
-                            color: scheme.onSurface),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.6),
                       ),
                     )
                   : Container(
@@ -724,10 +717,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       ),
                       child: Text(
                         'No notes yet. Tap Edit to add bank login ID,\ncustomer care numbers, or any reminder.',
-                        style: TextStyle(
-                            fontSize: 13,
-                            height: 1.5,
-                            color: scheme.onSurfaceVariant),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5),
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -778,7 +768,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionLabel(context, 'PAYMENT STATUS'),
+            const SectionLabel(label: 'PAYMENT STATUS'),
             SizedBox(height: context.spacing(8)),
             SectionCard(children: [
               Padding(
@@ -802,12 +792,4 @@ class _CardDetailScreenState extends State<CardDetailScreen>
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  Widget _sectionLabel(BuildContext context, String label) {
-    return Text(label,
-        style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.2,
-            color: Theme.of(context).colorScheme.primary));
-  }
 }

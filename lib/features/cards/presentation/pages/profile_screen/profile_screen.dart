@@ -6,6 +6,7 @@ import '../../../../../core/theme/theme_cubit.dart';
 import '../../../../../core/ui/responsive_layout.dart';
 import '../../../../../features/backup/presentation/backup_screen.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
+import '../../widgets/section_card.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -22,19 +23,19 @@ class ProfileScreen extends StatelessWidget {
             SizedBox(height: context.spacing(14)),
 
             // ── Appearance ──────────────────────────────────────────────────
-            _sectionLabel(context, 'APPEARANCE'),
+            SectionLabel(label: 'APPEARANCE'),
             SizedBox(height: context.spacing(8)),
             const _ThemeModeTile(),
             SizedBox(height: context.spacing(20)),
 
             // ── Backup ──────────────────────────────────────────────────────
-            _sectionLabel(context, 'BACKUP & RESTORE'),
+            SectionLabel(label: 'BACKUP & RESTORE'),
             SizedBox(height: context.spacing(8)),
             _BackupTile(),
             SizedBox(height: context.spacing(20)),
 
             // ── Security ────────────────────────────────────────────────────
-            _sectionLabel(context, 'SECURITY'),
+            SectionLabel(label: 'SECURITY'),
             SizedBox(height: context.spacing(8)),
             _ProfileTile(
               icon: Icons.fingerprint,
@@ -55,14 +56,6 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _sectionLabel(BuildContext context, String label) {
-    return Text(label,
-        style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.2,
-            color: Theme.of(context).colorScheme.primary));
-  }
 }
 
 // ─── Backup tile ──────────────────────────────────────────────────────────────

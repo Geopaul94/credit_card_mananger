@@ -40,13 +40,29 @@ class MyApp extends StatelessWidget {
             themeMode: themeMode,
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
-            // Tapping anywhere outside a text field dismisses the keyboard,
-            // app-wide.
-            builder: (context, child) => GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-              child: child,
-            ),
+            builder: (context, child) {
+              final media = MediaQuery.of(context);
+              return MediaQuery(
+                // Respect the user's font-size setting, but bound it. Card
+                // faces are fixed-height graphics with the number, holder and
+                // expiry laid out like a real card; unbounded scaling
+                // overflows them. This still honours a genuine accessibility
+                // need while keeping every screen intact.
+                data: media.copyWith(
+                  textScaler: media.textScaler.clamp(
+                    minScaleFactor: 0.9,
+                    maxScaleFactor: 1.3,
+                  ),
+                ),
+                // Tapping anywhere outside a text field dismisses the
+                // keyboard, app-wide.
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+                  child: child,
+                ),
+              );
+            },
             home: const _AppGate(),
           );
         },

@@ -6,6 +6,7 @@ import '../../../domain/entities/payment_card.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../bloc/card_overview/card_overview_event.dart';
 import '../../bloc/card_overview/card_overview_state.dart';
+import '../../widgets/section_card.dart';
 import '../../widgets/swipe_to_confirm.dart';
 
 const _months = [
@@ -60,19 +61,19 @@ class ReminderScreen extends StatelessWidget {
                 _SummaryHeader(actionCount: actionNeeded.length),
                 SizedBox(height: context.spacing(20)),
                 if (actionNeeded.isNotEmpty) ...[
-                  const _SectionTitle('DUE NOW'),
+                  const SectionLabel(label: 'DUE NOW'),
                   const SizedBox(height: 10),
                   ...actionNeeded.map((c) => _ActiveReminderCard(card: c)),
                   SizedBox(height: context.spacing(8)),
                 ],
                 if (upcoming.isNotEmpty) ...[
-                  const _SectionTitle('UPCOMING'),
+                  const SectionLabel(label: 'UPCOMING'),
                   const SizedBox(height: 10),
                   ...upcoming.map((c) => _CompactRow(card: c)),
                   SizedBox(height: context.spacing(8)),
                 ],
                 if (paid.isNotEmpty) ...[
-                  const _SectionTitle('PAID THIS CYCLE'),
+                  const SectionLabel(label: 'PAID THIS CYCLE'),
                   const SizedBox(height: 10),
                   ...paid.map((c) => _CompactRow(card: c, paid: true)),
                 ],
@@ -203,24 +204,6 @@ class _SummaryHeader extends StatelessWidget {
 }
 
 // ─── Section title ────────────────────────────────────────────────────────────
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.label);
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.2,
-        color: Theme.of(context).colorScheme.primary,
-      ),
-    );
-  }
-}
 
 // ─── Active reminder card (with swipe-to-pay) ────────────────────────────────
 

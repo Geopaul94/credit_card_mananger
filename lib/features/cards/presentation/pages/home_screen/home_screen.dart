@@ -6,6 +6,7 @@ import '../../../domain/entities/payment_card.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../bloc/card_overview/card_overview_event.dart';
 import '../../bloc/card_overview/card_overview_state.dart';
+import '../../widgets/card_skeleton.dart';
 import '../../widgets/card_tile.dart';
 import '../../widgets/empty_card_view.dart';
 
@@ -17,10 +18,44 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  /// Below this many cards the list is scannable by eye and a search box is
+  /// just another thing on screen.
+  static const _searchAppearsAt = 5;
+
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
   @override
   void initState() {
     super.initState();
     context.read<CardOverviewBloc>().add(const LoadCardsRequested());
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  /// Matches against everything a person might recall about a card — the bank,
+  /// the product name, whose name is on it, its type, and the last four
+  /// digits, which is usually how a card is identified out loud.
+  List<PaymentCard> _filter(List<PaymentCard> cards) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return cards;
+    final digits = q.replaceAll(RegExp(r'\D'), '');
+
+    return cards.where((c) {
+      final haystack = [
+        c.bankName ?? '',
+        c.cardName ?? '',
+        c.holderName,
+        c.typeLabel,
+        c.displayTitle,
+      ].join(' ').toLowerCase();
+      if (haystack.contains(q)) return true;
+      return digits.isNotEmpty && c.cardNumber.contains(digits);
+    }).toList();
   }
 
   @override
@@ -29,9 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(title: const Text('My Cards')),
       body: BlocBuilder<CardOverviewBloc, CardOverviewState>(
         builder: (context, state) {
-          if (state.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+          if (state.isLoading) return const CardListSkeleton();
 
           if (state.errorMessage != null) {
             return _ErrorView(
@@ -44,6 +77,48 @@ class _HomeScreenState extends State<HomeScreen> {
 
           if (state.cards.isEmpty) return const EmptyCardView();
 
+          final showSearch = state.cards.length >= _searchAppearsAt;
+          final visible = showSearch ? _filter(state.cards) : state.cards;
+          final isSearching = _query.trim().isNotEmpty;
+
+          // Leading items: the summary (hidden while searching, so results
+          // get the room) and the search field itself.
+          final headers = <Widget>[
+            if (!isSearching)
+              _VaultSummary(
+                cards: state.cards,
+                paidCardIds: state.paidCardIds,
+              ),
+            if (showSearch)
+              _SearchField(
+                controller: _searchCtrl,
+                onChanged: (v) => setState(() => _query = v),
+                onClear: () {
+                  _searchCtrl.clear();
+                  setState(() => _query = '');
+                },
+              ),
+          ];
+
+          if (visible.isEmpty) {
+            return ResponsiveContent(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      context.spacing(16),
+                      context.spacing(16),
+                      context.spacing(16),
+                      0,
+                    ),
+                    child: Column(children: headers),
+                  ),
+                  Expanded(child: _NoMatches(query: _query.trim())),
+                ],
+              ),
+            );
+          }
+
           // Lazily built: only the cards actually on screen are laid out,
           // which matters because each one is a full-height gradient card.
           return ResponsiveContent(
@@ -54,19 +129,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 context.spacing(16),
                 context.spacing(96),
               ),
-              // One extra leading item for the summary header.
-              itemCount: state.cards.length + 1,
+              itemCount: visible.length + headers.length,
               itemBuilder: (context, index) {
-                if (index == 0) {
+                if (index < headers.length) {
                   return Padding(
-                    padding: EdgeInsets.only(bottom: context.spacing(20)),
-                    child: _VaultSummary(
-                      cards: state.cards,
-                      paidCardIds: state.paidCardIds,
-                    ),
+                    padding: EdgeInsets.only(bottom: context.spacing(16)),
+                    child: headers[index],
                   );
                 }
-                final card = state.cards[index - 1];
+                final card = visible[index - headers.length];
                 return CardTile(
                   card: card,
                   isPaid: state.paidCardIds.contains(card.id),
@@ -75,6 +146,73 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+// ─── Search ───────────────────────────────────────────────────────────────────
+
+class _SearchField extends StatelessWidget {
+  const _SearchField({
+    required this.controller,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        hintText: 'Search bank, name, or last 4 digits',
+        prefixIcon: Icon(Icons.search, size: 20, color: scheme.onSurfaceVariant),
+        suffixIcon: controller.text.isEmpty
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: onClear,
+                tooltip: 'Clear',
+              ),
+        isDense: true,
+      ),
+    );
+  }
+}
+
+class _NoMatches extends StatelessWidget {
+  const _NoMatches({required this.query});
+  final String query;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(context.spacing(28)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.search_off_rounded,
+              size: context.spacing(40),
+              color: scheme.onSurfaceVariant,
+            ),
+            SizedBox(height: context.spacing(10)),
+            Text(
+              'No cards match "$query"',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+          ],
+        ),
       ),
     );
   }

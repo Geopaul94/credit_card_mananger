@@ -12,7 +12,8 @@ class AddCvvRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -35,18 +36,15 @@ class AddCvvRow extends StatelessWidget {
                 children: [
                   Text(
                     'CVV',
-                    style: TextStyle(
-                      fontSize: 11,
+                    style: theme.textTheme.labelSmall?.copyWith(
                       color: scheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     'Not saved',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
+                    style: theme.textTheme.titleMedium?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
                   ),

@@ -6,6 +6,7 @@ import '../../../core/ui/responsive_layout.dart';
 import '../../cards/presentation/bloc/card_overview/card_overview_bloc.dart';
 import '../../cards/presentation/bloc/card_overview/card_overview_event.dart';
 import '../../cards/presentation/bloc/card_overview/card_overview_state.dart';
+import '../../cards/presentation/widgets/section_card.dart';
 
 class BackupScreen extends StatefulWidget {
   const BackupScreen({super.key});
@@ -84,25 +85,25 @@ class _BackupScreenState extends State<BackupScreen> {
                 SizedBox(height: context.spacing(20)),
 
                 // ── Google account section ─────────────────────────────────
-                _sectionLabel(context, 'GOOGLE ACCOUNT'),
+                SectionLabel(label: 'GOOGLE ACCOUNT'),
                 SizedBox(height: context.spacing(8)),
                 _AccountCard(backupState: backupState, scheme: scheme),
                 SizedBox(height: context.spacing(20)),
 
                 // ── Auto-backup section ────────────────────────────────────
-                _sectionLabel(context, 'AUTOMATIC BACKUP'),
+                SectionLabel(label: 'AUTOMATIC BACKUP'),
                 SizedBox(height: context.spacing(8)),
                 _AutoBackupCard(backupState: backupState, scheme: scheme),
                 SizedBox(height: context.spacing(20)),
 
                 // ── Backup section ─────────────────────────────────────────
-                _sectionLabel(context, 'BACKUP'),
+                SectionLabel(label: 'BACKUP'),
                 SizedBox(height: context.spacing(8)),
                 _BackupCard(backupState: backupState, scheme: scheme),
                 SizedBox(height: context.spacing(20)),
 
                 // ── Restore section ────────────────────────────────────────
-                _sectionLabel(context, 'RESTORE'),
+                SectionLabel(label: 'RESTORE'),
                 SizedBox(height: context.spacing(8)),
                 _RestoreCard(backupState: backupState, scheme: scheme),
                 SizedBox(height: context.spacing(20)),
@@ -117,14 +118,6 @@ class _BackupScreenState extends State<BackupScreen> {
     );
   }
 
-  Widget _sectionLabel(BuildContext context, String label) {
-    return Text(label,
-        style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.2,
-            color: Theme.of(context).colorScheme.primary));
-  }
 }
 
 // ─── Header banner ────────────────────────────────────────────────────────────
@@ -201,8 +194,7 @@ class _AccountCard extends StatelessWidget {
                 const SizedBox(height: 10),
                 Text('Connect your Google account to enable backup.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                        color: scheme.onSurfaceVariant, fontSize: 13)),
+                    style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: 14),
                 SizedBox(
                   width: double.infinity,
@@ -249,8 +241,7 @@ class _AccountCard extends StatelessWidget {
                           style: const TextStyle(
                               fontWeight: FontWeight.w600, fontSize: 15)),
                       Text(account.email,
-                          style: TextStyle(
-                              color: scheme.onSurfaceVariant, fontSize: 12)),
+                          style: Theme.of(context).textTheme.bodySmall),
                     ],
                   ),
                 ),
@@ -290,7 +281,7 @@ class _AutoBackupCard extends StatelessWidget {
           backupState.autoEnabled
               ? 'Backs up once a day when you open the app.'
               : 'Automatic backup is off.',
-          style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+          style: Theme.of(context).textTheme.bodySmall,
         ),
         value: backupState.autoEnabled,
         onChanged: backupState.isLoading
@@ -324,18 +315,14 @@ class _BackupCard extends StatelessWidget {
                   size: 20, color: scheme.primary),
               const SizedBox(width: 8),
               Text('Back up to Google Drive',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: scheme.onSurface)),
+                  style: Theme.of(context).textTheme.titleSmall),
             ]),
             const SizedBox(height: 6),
             Text(
               lastDrive != null
                   ? 'Last backup: ${_formatDate(lastDrive)}'
                   : 'No backup yet',
-              style: TextStyle(
-                  color: scheme.onSurfaceVariant, fontSize: 12),
+              style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 14),
             BlocBuilder<CardOverviewBloc, CardOverviewState>(
@@ -369,8 +356,7 @@ class _BackupCard extends StatelessWidget {
             if (!isSignedIn) ...[
               const SizedBox(height: 8),
               Text('Sign in above to enable backup.',
-                  style: TextStyle(
-                      color: scheme.onSurfaceVariant, fontSize: 12),
+                  style: Theme.of(context).textTheme.bodySmall,
                   textAlign: TextAlign.center),
             ],
           ],
@@ -411,10 +397,7 @@ class _RestoreCard extends StatelessWidget {
               Icon(Icons.restore_rounded, size: 20, color: scheme.primary),
               const SizedBox(width: 8),
               Text('Restore from backup',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: scheme.onSurface)),
+                  style: Theme.of(context).textTheme.titleSmall),
             ]),
             const SizedBox(height: 6),
             Text(
@@ -501,10 +484,7 @@ class _InfoCard extends StatelessWidget {
             Icon(Icons.shield_outlined, size: 16, color: scheme.primary),
             const SizedBox(width: 8),
             Text('How it works',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: scheme.onSurface)),
+                style: Theme.of(context).textTheme.titleSmall),
           ]),
           const SizedBox(height: 10),
           ...[
