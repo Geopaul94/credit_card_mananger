@@ -39,12 +39,19 @@ Data flows: screen → `CardOverviewBloc` event → use case → repository →
 - **Play readiness** — release signing via `key.properties`, R8 + resource shrinking,
   privacy policy, launcher icon, input validation. Shipped 1.0.0 and 1.0.1.
 - **CVV removal** (1.0.1) — CVV was stripped from the app entirely to get through review.
-- **CVV restore** (1.0.2, current) — brought back as an **optional**, biometric-gated field.
+- **CVV restore** (1.0.2) — brought back as an **optional** field, shown plainly (Geo's
+  call: the app lock is the gate; no per-view biometric prompt).
+- **UI overhaul** (1.0.2) — brand marks + per-bank colours on card faces, useful home
+  header (next bill due), search, drag-to-reorder, expiry warnings, empty-state CTA,
+  skeleton loading, branded splash, haptics, typography moved onto the theme's type
+  scale, text-scale support (clamped 0.9–1.3), and heavy dedup (SwipeToConfirm,
+  SectionLabel ×4, SectionCard/Divider; detail screen split 1587 → ~700 lines).
 
 ## Next sprint (proposed)
 
-Verify 1.0.2 on a real device (biometric reveal, auto-hide, restore of an old
-card with no CVV), update the Play Console Data Safety form, then upload.
+Verify 1.0.2 on a real device (CVV add/edit/remove, scan, reorder, search,
+splash in dark mode, restore of an old card with no CVV), update the Play
+Console Data Safety form, then upload.
 
 ## Known issues / TODO
 
@@ -52,14 +59,17 @@ card with no CVV), update the Play Console Data Safety form, then upload.
   symbols". The bundle is still produced and is fine; Flutter verifies stripping with
   `apkanalyzer` from the Android **cmdline-tools** component, which is not installed on
   this machine. Fix: Android Studio → SDK Manager → SDK Tools → "Android SDK
-  Command-line Tools".
-- `test/widget_test.dart` is still Flutter's default counter-app scaffold and **fails**.
-  It needs replacing with a real smoke test.
+  Command-line Tools". (Debug builds exit 0.)
+- Flutter warns the project should migrate to **Built-in Kotlin** (Kotlin Gradle Plugin
+  deprecation) — not urgent, but will break on a future Flutter upgrade.
 - Android `namespace` is still `com.example.credit_cards` (cosmetic — applicationId is
   correct). An orphan `android/app/src/main/kotlin/com/geo/credit_cards/MainActivity.kt`
-  is left over from the reverted applicationId change and is untracked.
+  is left over from the reverted applicationId change and is untracked (Geo hasn't
+  confirmed deleting it).
 - `store/` listing assets: screenshots and feature graphic are only in Play Console,
   not in the repo or the backup folder yet.
+- Splash colours in `android/.../res/values*/colors.xml` are copies of AppTheme's
+  background tokens — change both together.
 
 ## Gotchas — read before changing things
 

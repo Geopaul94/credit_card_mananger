@@ -6,17 +6,26 @@ One line per user-visible change, newest version first.
 
 ### Added
 - Optional CVV. You can save a card's security code if you want to; leaving the
-  field blank stores nothing.
-- Viewing or copying a saved CVV asks for your fingerprint, face, or device PIN
-  every time, and a revealed code hides itself again after 30 seconds.
-- Cards saved earlier can have a CVV added later from the card detail screen,
-  and a saved code can be changed or removed there.
+  field blank stores nothing. Cards saved earlier can have one added later, and
+  a saved code can be changed or removed from the card detail screen.
 - Scanning the back of a card reads the security code into the CVV field.
+- Cards show their payment network (Visa, Mastercard, RuPay, Amex, Discover,
+  Diners) on the card face.
+- Cards are coloured by their issuing bank, so different cards look different.
+- The home header names the next bill due and how soon it is.
+- Search (from 5 cards) by bank, card name, holder, type, or last 4 digits.
+- Drag a card (long-press) to reorder the list; the order is remembered.
+- Cards warn when they expire within 2 months, and show EXPIRED after.
+- Empty vault screen now has an "Add your first card" button.
+- Branded launch screen in light and dark, with no white flash on startup.
+- Haptic feedback on copy, card open, save, drag, and swipe-to-pay.
 
 ### Changed
-- Privacy policy updated to describe optional CVV storage and how it is
-  protected. **The Play Console Data Safety form must be updated to match
-  before this version is uploaded.**
+- Name fields start the keyboard capitalised; notes use sentence case.
+- Loading shows card-shaped placeholders instead of a spinner.
+- Font-size accessibility settings are honoured (bounded at 1.3x).
+- Privacy policy updated to describe optional CVV storage. **The Play Console
+  Data Safety form must be updated to match before this version is uploaded.**
 
 ## [1.0.1] — versionCode 2
 
