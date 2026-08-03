@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/bottom_navigation/bottom_navigation_bloc.dart';
 import '../bloc/bottom_navigation/bottom_navigation_event.dart';
 import '../bloc/bottom_navigation/bottom_navigation_state.dart';
-import '../bloc/card_overview/card_overview_bloc.dart';
 import '../pages/add_card_screen/add_card_screen.dart';
 import '../pages/home_screen/home_screen.dart';
 import '../pages/profile_screen/profile_screen.dart';
@@ -12,17 +11,6 @@ import '../pages/reminder_screen/reminder_screen.dart';
 
 class BottomNavigationBarWidget extends StatelessWidget {
   const BottomNavigationBarWidget({super.key});
-
-  Future<void> _openAddCard(BuildContext context) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => BlocProvider.value(
-          value: context.read<CardOverviewBloc>(),
-          child: const AddCardScreen(),
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +31,7 @@ class BottomNavigationBarWidget extends StatelessWidget {
             onTabTap: (i) => context
                 .read<BottomNavigationBloc>()
                 .add(ChangeTabEvent(i)),
-            onAddTap: () => _openAddCard(context),
+            onAddTap: () => openAddCardScreen(context),
           ),
         );
       },

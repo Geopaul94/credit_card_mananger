@@ -32,6 +32,37 @@ class PaymentCard extends Equatable {
   /// True when a security code is stored for this card.
   bool get hasCvv => cvv != null && cvv!.trim().isNotEmpty;
 
+  // ── Expiry ─────────────────────────────────────────────────────────────────
+
+  /// The moment this card stops being valid. A card expires at the *end* of
+  /// its printed month, so an 08/28 card is good until 31 Aug 2028.
+  /// Null when [expiryDate] isn't a well-formed MM/YY.
+  DateTime? get expiresAt {
+    final m = RegExp(r'^(\d{2})/(\d{2})$').firstMatch(expiryDate.trim());
+    if (m == null) return null;
+    final month = int.parse(m.group(1)!);
+    if (month < 1 || month > 12) return null;
+    final year = 2000 + int.parse(m.group(2)!);
+    // Day 0 of the following month is the last day of this one.
+    return DateTime(year, month + 1, 0, 23, 59, 59);
+  }
+
+  /// True once the printed month has fully passed.
+  bool get isExpired {
+    final end = expiresAt;
+    return end != null && DateTime.now().isAfter(end);
+  }
+
+  /// True while the card is still valid but runs out within [withinDays].
+  /// Two months is early enough that a replacement usually arrives in time.
+  bool isExpiringSoon({int withinDays = 60}) {
+    final end = expiresAt;
+    if (end == null) return false;
+    final now = DateTime.now();
+    if (now.isAfter(end)) return false; // already expired, not "soon"
+    return end.difference(now).inDays <= withinDays;
+  }
+
   /// Title shown in lists / app bar: "Bank - Card Name" when both exist,
   /// otherwise whichever is present (falling back to the card type).
   String get displayTitle {

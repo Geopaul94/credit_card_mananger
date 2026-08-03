@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/theme/card_palette.dart';
@@ -18,6 +19,7 @@ class CardTile extends StatelessWidget {
   final bool isPaid;
 
   void _openDetail(BuildContext context) {
+    HapticFeedback.selectionClick();
     Navigator.push(
       context,
       PageRouteBuilder(
@@ -207,30 +209,7 @@ class CardFrontFace extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'VALID THRU',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.55),
-                                fontSize: 9,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              card.expiryDate,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                letterSpacing: 1.2,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
+                        _ExpiryBlock(card: card),
                         const SizedBox(width: 14),
                         // Payment network, where it sits on a real card.
                         CardBrandMark(cardNumber: card.cardNumber),
@@ -255,6 +234,63 @@ class _CardFront extends CardFrontFace {
     required super.gradientColors,
     super.isPaid,
   });
+}
+
+// ─── Expiry block ─────────────────────────────────────────────────────────────
+
+/// "VALID THRU" plus the date, tinted when the card is close to running out.
+/// Warning the user where the date already is beats adding another badge.
+class _ExpiryBlock extends StatelessWidget {
+  const _ExpiryBlock({required this.card});
+  final PaymentCard card;
+
+  @override
+  Widget build(BuildContext context) {
+    final expired = card.isExpired;
+    final soon = !expired && card.isExpiringSoon();
+    final color = expired
+        ? const Color(0xFFFCA5A5) // red-300, legible on every gradient
+        : soon
+            ? const Color(0xFFFCD34D) // amber-300
+            : Colors.white;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          expired ? 'EXPIRED' : 'VALID THRU',
+          style: TextStyle(
+            color: expired
+                ? color.withValues(alpha: 0.9)
+                : Colors.white.withValues(alpha: 0.55),
+            fontSize: 9,
+            letterSpacing: 1,
+            fontWeight: expired ? FontWeight.w700 : FontWeight.w400,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (expired || soon) ...[
+              Icon(Icons.warning_amber_rounded, size: 12, color: color),
+              const SizedBox(width: 3),
+            ],
+            Text(
+              card.expiryDate,
+              style: TextStyle(
+                color: color,
+                fontSize: 13,
+                letterSpacing: 1.2,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────

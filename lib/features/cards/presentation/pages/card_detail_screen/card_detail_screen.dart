@@ -6,14 +6,17 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/theme/card_palette.dart';
 import '../../../../../core/ui/responsive_layout.dart';
-import '../../../../../core/utils/card_input.dart';
 import '../../../domain/entities/payment_card.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../bloc/card_overview/card_overview_event.dart';
 import '../../bloc/card_overview/card_overview_state.dart';
 import '../../widgets/card_tile.dart';
-
-const double _kCardHeight = 220;
+import '../../widgets/section_card.dart';
+import '../../widgets/swipe_to_confirm.dart';
+import 'widgets/card_back_face.dart';
+import 'widgets/cvv_editor.dart';
+import 'widgets/detail_row.dart';
+import 'widgets/paid_success_banner.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 class CardDetailScreen extends StatefulWidget {
@@ -91,6 +94,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
 
   void _copy(String value, String label) {
     Clipboard.setData(ClipboardData(text: value));
+    // A short tick confirms the copy landed even if the snackbar is glanced past.
+    HapticFeedback.selectionClick();
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(SnackBar(
@@ -109,9 +114,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
 
   /// Adds, changes, or removes the stored security code.
   Future<void> _editCvv() async {
-    final edit = await showDialog<_CvvEdit>(
+    final edit = await showDialog<CvvEdit>(
       context: context,
-      builder: (_) => _CvvEditorDialog(initialValue: _card.cvv),
+      builder: (_) => CvvEditorDialog(initialValue: _card.cvv),
     );
     if (edit == null || !mounted) return;
 
@@ -335,7 +340,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 : Transform(
                     transform: Matrix4.identity()..rotateY(math.pi),
                     alignment: Alignment.center,
-                    child: _CardBackFace(
+                    child: CardBackFace(
                       card: _card,
                       gradientColors: _gradient,
                     ),
@@ -353,29 +358,37 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     final last4 = digits.length >= 4 ? digits.substring(digits.length - 4) : '****';
     final masked = '**** **** **** $last4';
 
-    return _SectionCard(children: [
-      _DetailRow(
+    return SectionCard(children: [
+      DetailRow(
         icon: Icons.credit_card,
         label: 'Card Number',
         value: _showNumber ? _card.formattedNumber : masked,
         onCopy: () => _copy(_card.formattedNumber, 'Card number'),
-        trailing: _IconBox(
+        trailing: IconBox(
           icon: _showNumber ? Icons.visibility_off : Icons.visibility,
           onTap: () => setState(() => _showNumber = !_showNumber),
-          scheme: scheme,
         ),
       ),
-      _RowDivider(),
-      _DetailRow(
+      const SectionDivider(),
+      DetailRow(
         icon: Icons.date_range_outlined,
-        label: 'Expiry',
+        label: _card.isExpired
+            ? 'Expiry · this card has expired'
+            : _card.isExpiringSoon()
+                ? 'Expiry · expires soon'
+                : 'Expiry',
         value: _card.expiryDate,
         onCopy: () => _copy(_card.expiryDate, 'Expiry'),
+        valueColor: _card.isExpired
+            ? scheme.error
+            : _card.isExpiringSoon()
+                ? const Color(0xFFB45309) // amber-700, readable in both themes
+                : null,
       ),
-      _RowDivider(),
+      const SectionDivider(),
       _buildCvvRow(scheme),
-      _RowDivider(),
-      _DetailRow(
+      const SectionDivider(),
+      DetailRow(
         icon: Icons.person_outline,
         label: 'Card Holder',
         value: _card.holderName,
@@ -387,22 +400,22 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   /// Three states: no code stored (offer to add one), stored and hidden,
   /// stored and revealed.
   Widget _buildCvvRow(ColorScheme scheme) {
-    if (!_card.hasCvv) return _AddCvvRow(onTap: _editCvv);
+    if (!_card.hasCvv) return AddCvvRow(onTap: _editCvv);
 
-    return _DetailRow(
+    return DetailRow(
       icon: Icons.lock_outline,
       label: 'CVV',
       value: _card.cvv!,
       onCopy: () => _copy(_card.cvv!, 'CVV'),
       trailing:
-          _IconBox(icon: Icons.edit_outlined, onTap: _editCvv, scheme: scheme),
+          IconBox(icon: Icons.edit_outlined, onTap: _editCvv),
     );
   }
 
   // ── Due-date card ─────────────────────────────────────────────────────────
 
   Widget _buildDueDateCard(ColorScheme scheme) {
-    return _SectionCard(children: [
+    return SectionCard(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         child: Column(
@@ -421,7 +434,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                       fontWeight: FontWeight.w600, fontSize: 14, color: scheme.onSurface),
                 ),
               ),
-              _PillButton(
+              PillButton(
                 label: _isDueDayEditing ? 'Cancel' : 'Edit',
                 color: scheme.primary,
                 onTap: () => setState(() {
@@ -624,7 +637,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   Widget _buildNotesCard(ColorScheme scheme) {
     final hasNotes = (_card.notes ?? '').trim().isNotEmpty;
 
-    return _SectionCard(children: [
+    return SectionCard(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         child: Column(
@@ -644,13 +657,12 @@ class _CardDetailScreenState extends State<CardDetailScreen>
               if (!_isNotesEditing) ...[
                 // Copy button (only if notes exist)
                 if (hasNotes)
-                  _IconBox(
+                  IconBox(
                     icon: Icons.copy,
                     onTap: () => _copy(_card.notes!, 'Notes'),
-                    scheme: scheme,
                   ),
                 const SizedBox(width: 8),
-                _PillButton(
+                PillButton(
                   label: 'Edit',
                   color: scheme.primary,
                   onTap: () => setState(() => _isNotesEditing = true),
@@ -768,19 +780,17 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           children: [
             _sectionLabel(context, 'PAYMENT STATUS'),
             SizedBox(height: context.spacing(8)),
-            _SectionCard(children: [
+            SectionCard(children: [
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: isPaid
-                    ? _PaidSuccessBanner(
+                    ? PaidSuccessBanner(
                         onUndo: () => _dispatch(
                             MarkCardUnpaidRequested(cardId: _card.id)),
                       )
-                    : _SwipeToConfirm(
-                        onConfirmed: () {
-                          _dispatch(
-                              MarkCardPaidRequested(cardId: _card.id));
-                        },
+                    : SwipeToConfirm(
+                        onConfirmed: () =>
+                            _dispatch(MarkCardPaidRequested(cardId: _card.id)),
                       ),
               ),
             ]),
@@ -799,663 +809,5 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             fontWeight: FontWeight.w700,
             letterSpacing: 1.2,
             color: Theme.of(context).colorScheme.primary));
-  }
-}
-
-// ─── Swipe-to-confirm widget ──────────────────────────────────────────────────
-
-class _SwipeToConfirm extends StatefulWidget {
-  const _SwipeToConfirm({required this.onConfirmed});
-  final VoidCallback onConfirmed;
-
-  @override
-  State<_SwipeToConfirm> createState() => _SwipeToConfirmState();
-}
-
-class _SwipeToConfirmState extends State<_SwipeToConfirm>
-    with SingleTickerProviderStateMixin {
-  static const double _thumbW = 54.0;
-  static const double _trackH = 62.0;
-  static const double _margin = 5.0;
-
-  double _progress = 0.0; // 0.0 → 1.0
-  bool _done = false;
-
-  late final AnimationController _snapCtrl;
-  late Animation<double> _snapAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _snapCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 320));
-  }
-
-  @override
-  void dispose() {
-    _snapCtrl.dispose();
-    super.dispose();
-  }
-
-  void _onDragUpdate(DragUpdateDetails d, double maxDrag) {
-    if (_done) return;
-    _snapCtrl.stop();
-    setState(() {
-      _progress =
-          ((_progress * maxDrag) + d.delta.dx).clamp(0.0, maxDrag) / maxDrag;
-    });
-  }
-
-  void _onDragEnd(DragEndDetails d, double maxDrag) {
-    if (_done) return;
-    if (_progress >= 0.78) {
-      setState(() {
-        _progress = 1.0;
-        _done = true;
-      });
-      widget.onConfirmed();
-    } else {
-      // Snap back with spring
-      _snapAnim = Tween<double>(begin: _progress, end: 0.0).animate(
-        CurvedAnimation(parent: _snapCtrl, curve: Curves.easeOutCubic),
-      )..addListener(() => setState(() => _progress = _snapAnim.value));
-      _snapCtrl.forward(from: 0);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final maxDrag = constraints.maxWidth - _thumbW - _margin * 2;
-
-      return GestureDetector(
-        onHorizontalDragUpdate: (d) => _onDragUpdate(d, maxDrag),
-        onHorizontalDragEnd: (d) => _onDragEnd(d, maxDrag),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          height: _trackH,
-          decoration: BoxDecoration(
-            color: _done
-                ? Colors.green.withValues(alpha: 0.15)
-                : Color.lerp(
-                    Colors.green.withValues(alpha: 0.06),
-                    Colors.green.withValues(alpha: 0.18),
-                    _progress,
-                  ),
-            borderRadius: BorderRadius.circular(_trackH / 2),
-            border: Border.all(
-              color: Color.lerp(
-                Colors.green.withValues(alpha: 0.25),
-                Colors.green.withValues(alpha: 0.55),
-                _progress,
-              )!,
-            ),
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
-            children: [
-              // Track hint text
-              if (!_done)
-                Opacity(
-                  opacity: (1.0 - _progress * 1.8).clamp(0.0, 1.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const SizedBox(width: 50), // offset for thumb
-                      Icon(Icons.check_circle_outline,
-                          size: 16, color: Colors.green.shade600),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Swipe right to mark as Paid',
-                        style: TextStyle(
-                          color: Colors.green.shade700,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-              // Draggable thumb
-              if (!_done)
-                Positioned(
-                  left: _margin + _progress * maxDrag,
-                  child: Container(
-                    width: _thumbW,
-                    height: _thumbW,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Color.lerp(Colors.green.shade400,
-                              Colors.green.shade600, _progress)!,
-                          Color.lerp(Colors.green.shade500,
-                              Colors.green.shade800, _progress)!,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.green.withValues(
-                              alpha: 0.3 + _progress * 0.2),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      _progress > 0.6
-                          ? Icons.check
-                          : Icons.chevron_right,
-                      color: Colors.white,
-                      size: 26,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      );
-    });
-  }
-}
-
-// ─── Paid success banner ──────────────────────────────────────────────────────
-
-class _PaidSuccessBanner extends StatelessWidget {
-  const _PaidSuccessBanner({required this.onUndo});
-  final VoidCallback onUndo;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      decoration: BoxDecoration(
-        color: Colors.green.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.green.withValues(alpha: 0.35)),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.check_circle, color: Colors.green, size: 28),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'Paid this cycle ✓',
-            style: TextStyle(
-                color: Colors.green,
-                fontWeight: FontWeight.w700,
-                fontSize: 16),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Reminders rescheduled for next month.',
-            style: TextStyle(
-                color: Colors.green.shade700,
-                fontSize: 12),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 6),
-          TextButton.icon(
-            onPressed: onUndo,
-            icon: const Icon(Icons.undo, size: 16),
-            label: const Text('Mark as not paid'),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.green.shade800,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Card back face ───────────────────────────────────────────────────────────
-
-class _CardBackFace extends StatelessWidget {
-  const _CardBackFace({
-    required this.card,
-    required this.gradientColors,
-  });
-
-  final PaymentCard card;
-  final List<Color> gradientColors;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        height: _kCardHeight,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: gradientColors,
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: gradientColors.last.withValues(alpha: 0.4),
-              blurRadius: 22,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(height: 36, color: const Color(0xFF111827)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Container(
-                height: 38,
-                decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(4)),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                // With a code stored the strip carries it (as a real card
-                // does); without one it's just the blank signature panel.
-                child: card.hasCvv
-                    ? Row(children: [
-                        Expanded(child: _SignatureLines()),
-                        const SizedBox(width: 10),
-                        Text('CVV',
-                            style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.grey.shade500,
-                                fontWeight: FontWeight.w700)),
-                        const SizedBox(width: 6),
-                        Text(
-                          card.cvv!,
-                          style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.black87,
-                              letterSpacing: 2),
-                        ),
-                      ])
-                    : _SignatureLines(),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Column(children: [
-                _BackInfoRow(label: 'TYPE', value: card.typeLabel),
-                const SizedBox(height: 6),
-                _BackInfoRow(label: 'HOLDER', value: card.holderName),
-                const SizedBox(height: 6),
-                _BackInfoRow(label: 'EXPIRY', value: card.expiryDate),
-              ]),
-            ),
-            const Spacer(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 10),
-              child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                Icon(Icons.touch_app_outlined,
-                    size: 12, color: Colors.white.withValues(alpha: 0.5)),
-                const SizedBox(width: 4),
-                Text('tap to flip',
-                    style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.white.withValues(alpha: 0.5))),
-              ]),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// The three ruled lines of a signature panel.
-class _SignatureLines extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: List.generate(
-          3, (_) => Container(height: 1, color: Colors.grey.shade300)),
-    );
-  }
-}
-
-class _BackInfoRow extends StatelessWidget {
-  const _BackInfoRow({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(children: [
-      SizedBox(
-        width: 48,
-        child: Text(label,
-            style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.55),
-                fontSize: 9,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.5)),
-      ),
-      Expanded(
-        child: Text(value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.8)),
-      ),
-    ]);
-  }
-}
-
-// ─── Detail row ───────────────────────────────────────────────────────────────
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.onCopy,
-    this.trailing,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final VoidCallback onCopy;
-  final Widget? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: scheme.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, size: 17, color: scheme.primary),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label,
-                style: TextStyle(
-                    fontSize: 11,
-                    color: scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w500)),
-            const SizedBox(height: 2),
-            Text(value,
-                style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5)),
-          ]),
-        ),
-        if (trailing != null) ...[trailing!, const SizedBox(width: 6)],
-        _IconBox(icon: Icons.copy, onTap: onCopy, scheme: scheme),
-      ]),
-    );
-  }
-}
-
-// ─── CVV: empty-state row + editor ────────────────────────────────────────────
-
-/// Shown when no security code is stored — including on every card saved
-/// before this feature existed.
-class _AddCvvRow extends StatelessWidget {
-  const _AddCvvRow({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: scheme.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.lock_outline, size: 17, color: scheme.primary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('CVV',
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: scheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w500)),
-              const SizedBox(height: 2),
-              Text('Not saved',
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: scheme.onSurfaceVariant)),
-            ]),
-          ),
-          _PillButton(label: 'Add', color: scheme.primary, onTap: onTap),
-        ]),
-      ),
-    );
-  }
-}
-
-/// What the CVV editor hands back: either a code to save, or a removal.
-class _CvvEdit {
-  const _CvvEdit.save(this.value) : remove = false;
-  const _CvvEdit.remove()
-      : value = null,
-        remove = true;
-
-  final String? value;
-  final bool remove;
-}
-
-class _CvvEditorDialog extends StatefulWidget {
-  const _CvvEditorDialog({this.initialValue});
-
-  /// Existing code, pre-filled for editing. Null when adding a new one.
-  final String? initialValue;
-
-  @override
-  State<_CvvEditorDialog> createState() => _CvvEditorDialogState();
-}
-
-class _CvvEditorDialogState extends State<_CvvEditorDialog> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _ctrl;
-
-  bool get _isEditing => widget.initialValue != null;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = TextEditingController(text: widget.initialValue ?? '');
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  void _save() {
-    if (!_formKey.currentState!.validate()) return;
-    final digits = _ctrl.text.replaceAll(RegExp(r'\D'), '');
-    // An emptied field on an existing card means "remove it", which the
-    // caller confirms before anything is discarded.
-    Navigator.pop(
-      context,
-      digits.isEmpty ? const _CvvEdit.remove() : _CvvEdit.save(digits),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return AlertDialog(
-      title: Text(_isEditing ? 'Edit CVV' : 'Add CVV'),
-      content: Form(
-        key: _formKey,
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextFormField(
-            controller: _ctrl,
-            autofocus: true,
-            keyboardType: TextInputType.number,
-            maxLength: 4,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            validator: validateCvv,
-            decoration: const InputDecoration(
-              labelText: 'Security code',
-              hintText: '3 digits · 4 on Amex',
-              counterText: '',
-            ),
-            onFieldSubmitted: (_) => _save(),
-          ),
-          const SizedBox(height: 10),
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.shield_outlined,
-                size: 14, color: scheme.onSurfaceVariant),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                _isEditing
-                    ? 'Clear the field and save to remove the stored code.'
-                    : 'Stored encrypted on this device. Viewing it later asks '
-                        'for your fingerprint or PIN.',
-                style: TextStyle(
-                    fontSize: 11.5,
-                    height: 1.45,
-                    color: scheme.onSurfaceVariant),
-              ),
-            ),
-          ]),
-        ]),
-      ),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel')),
-        FilledButton(onPressed: _save, child: const Text('Save')),
-      ],
-    );
-  }
-}
-
-// ─── Shared small widgets ─────────────────────────────────────────────────────
-
-class _IconBox extends StatelessWidget {
-  const _IconBox(
-      {required this.icon, required this.onTap, required this.scheme});
-  final IconData icon;
-  final VoidCallback onTap;
-  final ColorScheme scheme;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(icon, size: 15, color: scheme.onSurfaceVariant),
-      ),
-    );
-  }
-}
-
-class _PillButton extends StatelessWidget {
-  const _PillButton(
-      {required this.label, required this.color, required this.onTap});
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Text(label,
-            style: TextStyle(
-                color: color, fontSize: 12, fontWeight: FontWeight.w600)),
-      ),
-    );
-  }
-}
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({required this.children});
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: scheme.outline.withValues(alpha: 0.12)),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 12,
-              offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
-    );
-  }
-}
-
-class _RowDivider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Divider(
-      height: 1,
-      thickness: 1,
-      indent: 16,
-      endIndent: 16,
-      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
-    );
   }
 }

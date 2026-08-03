@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// A "swipe right to confirm" slider. Used to mark a card's bill as paid.
 class SwipeToConfirm extends StatefulWidget {
@@ -56,6 +57,10 @@ class _SwipeToConfirmState extends State<SwipeToConfirm>
         _progress = 1.0;
         _done = true;
       });
+      // Confirming a payment is the weightiest action in the app, so it gets a
+      // firm thud. Lives here rather than at each call site so every use of
+      // the slider feels the same.
+      HapticFeedback.mediumImpact();
       widget.onConfirmed();
     } else {
       // Snap back with spring

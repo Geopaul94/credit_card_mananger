@@ -10,6 +10,21 @@ import '../../bloc/add_card/add_card_cubit.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../bloc/card_overview/card_overview_event.dart';
 import '../../widgets/due_date_calendar.dart';
+import '../../widgets/section_card.dart';
+
+/// Opens the add-card flow, carrying the existing [CardOverviewBloc] across the
+/// route boundary. Shared by the nav bar's "+" button and the empty state so
+/// there is only one definition of how this screen is reached.
+Future<void> openAddCardScreen(BuildContext context) {
+  return Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => BlocProvider.value(
+        value: context.read<CardOverviewBloc>(),
+        child: const AddCardScreen(),
+      ),
+    ),
+  );
+}
 
 // ─── Route entry-point — provides a fresh AddCardCubit per open ───────────────
 
@@ -142,6 +157,7 @@ class _AddCardViewState extends State<_AddCardView> {
 
     final cubit = context.read<AddCardCubit>();
 
+    HapticFeedback.lightImpact();
     context.read<CardOverviewBloc>().add(
           AddCardRequested(
             holderName: _holderCtrl.text,
@@ -236,9 +252,9 @@ class _AddCardViewState extends State<_AddCardView> {
                 const SizedBox(height: 20),
 
                 // ── Section 1: Card Identity ───────────────────────────────
-                _SectionLabel(label: 'CARD INFO'),
+                SectionLabel(label: 'CARD INFO'),
                 const SizedBox(height: 8),
-                _FormCard(children: [
+                SectionCard(children: [
                   _Field(
                     controller: _bankCtrl,
                     label: 'Bank Name',
@@ -246,7 +262,7 @@ class _AddCardViewState extends State<_AddCardView> {
                     prefixIcon: Icons.account_balance_outlined,
                     textCapitalization: TextCapitalization.words,
                   ),
-                  _Divider(),
+                  const SectionDivider(),
                   _Field(
                     controller: _cardNameCtrl,
                     label: 'Card Name',
@@ -254,7 +270,7 @@ class _AddCardViewState extends State<_AddCardView> {
                     prefixIcon: Icons.badge_outlined,
                     textCapitalization: TextCapitalization.words,
                   ),
-                  _Divider(),
+                  const SectionDivider(),
                   _Field(
                     controller: _holderCtrl,
                     label: 'Card Holder Name',
@@ -266,7 +282,7 @@ class _AddCardViewState extends State<_AddCardView> {
                             ? 'Enter holder name'
                             : null,
                   ),
-                  _Divider(),
+                  const SectionDivider(),
                   // Card type toggle — rebuilds only when cardType changes.
                   BlocBuilder<AddCardCubit, AddCardState>(
                     buildWhen: (p, c) => p.cardType != c.cardType,
@@ -342,9 +358,9 @@ class _AddCardViewState extends State<_AddCardView> {
                 const SizedBox(height: 20),
 
                 // ── Section 2: Card Numbers ────────────────────────────────
-                _SectionLabel(label: 'CARD DETAILS'),
+                SectionLabel(label: 'CARD DETAILS'),
                 const SizedBox(height: 8),
-                _FormCard(children: [
+                SectionCard(children: [
                   _Field(
                     controller: _numberCtrl,
                     label: 'Card Number',
@@ -354,7 +370,7 @@ class _AddCardViewState extends State<_AddCardView> {
                     inputFormatters: [CardNumberInputFormatter()],
                     validator: validateCardNumber,
                   ),
-                  _Divider(),
+                  const SectionDivider(),
                   Row(children: [
                     Expanded(
                       child: _Field(
@@ -382,7 +398,7 @@ class _AddCardViewState extends State<_AddCardView> {
                 const SizedBox(height: 20),
 
                 // ── Section 3: Due Date ────────────────────────────────────
-                _SectionLabel(label: 'PAYMENT DUE DATE'),
+                SectionLabel(label: 'PAYMENT DUE DATE'),
                 const SizedBox(height: 8),
 
                 // Rebuilds when the selected due day changes.
@@ -390,7 +406,7 @@ class _AddCardViewState extends State<_AddCardView> {
                   buildWhen: (p, c) => p.selectedDueDay != c.selectedDueDay,
                   builder: (context, state) {
                     final cubit = context.read<AddCardCubit>();
-                    return _FormCard(children: [
+                    return SectionCard(children: [
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
                         child: Column(
@@ -460,65 +476,6 @@ class _AddCardViewState extends State<_AddCardView> {
 }
 
 // ─── Sub-widgets ──────────────────────────────────────────────────────────────
-
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.2,
-        color: Theme.of(context).colorScheme.primary,
-      ),
-    );
-  }
-}
-
-class _FormCard extends StatelessWidget {
-  const _FormCard({required this.children});
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: scheme.outline.withValues(alpha: 0.12)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: children,
-      ),
-    );
-  }
-}
-
-class _Divider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Divider(
-      height: 1,
-      thickness: 1,
-      indent: 16,
-      endIndent: 16,
-      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
-    );
-  }
-}
 
 class _Field extends StatelessWidget {
   const _Field({
