@@ -1,0 +1,75 @@
+CARD VAULT — PLAY STORE LISTING TEXT
+
+⚠ DRAFT — reconcile with what is actually live in Play Console.
+This file was reconstructed from the app itself, not exported from Play Console.
+Paste the real live text over this on the next release so the backup is accurate.
+
+------------------------------------------------------------------------------
+APP NAME (max 30 chars)
+------------------------------------------------------------------------------
+Card Vault
+
+------------------------------------------------------------------------------
+SHORT DESCRIPTION (max 80 chars)
+------------------------------------------------------------------------------
+Keep your cards and bill due dates in one encrypted, fingerprint-locked place.
+
+------------------------------------------------------------------------------
+FULL DESCRIPTION (max 4000 chars)
+------------------------------------------------------------------------------
+Card Vault keeps your credit, debit and prepaid card details in one place —
+encrypted on your phone, locked behind your fingerprint, and never sent to
+anyone. No account, no sign-up, no servers.
+
+WHY CARD VAULT
+Most of us keep card details in a notes app or a photo in the gallery. Card
+Vault gives them a proper home: AES-256 encrypted, behind your device lock,
+and organised so you can find what you need in seconds.
+
+EVERYTHING ON YOUR PHONE
+• AES-256 encryption, with the key held in your device's secure keystore
+• Fingerprint, face, or PIN required to open the app
+• No accounts, no tracking, no ads, no analytics
+• We run no servers — your data is never uploaded to us
+
+SCAN A CARD INSTEAD OF TYPING
+Point your camera at a card and Card Vault reads the number, expiry, holder
+name and bank for you. Recognition happens entirely on your device and the
+photo is deleted the moment it is read.
+
+NEVER MISS A BILL
+Set the day your bill is due and get reminders 3 days before, 2 days before,
+the day before, and on the day itself. Mark a bill paid with a swipe and the
+next cycle starts fresh.
+
+OPTIONAL SECURITY CODE
+You can save a card's CVV if you want to — it is entirely optional. It stays
+encrypted with the rest of the card, is hidden by default, and asks for your
+fingerprint or PIN every single time you view or copy it, then hides itself
+again automatically.
+
+PRIVATE NOTES
+Keep bank login IDs, customer-care numbers or reminders alongside each card,
+encrypted just the same.
+
+ENCRYPTED GOOGLE DRIVE BACKUP (OPTIONAL)
+Changing phones? Back up to your own Google Drive as an encrypted file that
+only this app on your account can open. Turn it off and the app makes no
+network requests with your card data at all.
+
+BUILT FOR PEACE OF MIND
+Card Vault cannot make payments, and it never shares your card details with any
+app, service or person. It is a private place to keep what you already own.
+
+Questions or feedback: geopaul94@gmail.com
+
+------------------------------------------------------------------------------
+DATA SAFETY — declare honestly in Play Console
+------------------------------------------------------------------------------
+As of v1.0.2 the app CAN store a CVV (optional, user-entered, on-device only).
+Make sure the Data Safety form and the privacy policy both reflect this before
+uploading. Key points to declare:
+  • Data is collected on-device only; nothing is transmitted to the developer
+  • Financial info (payment card details) — stored on device, user-provided
+  • Optional Google Drive backup is user-initiated and encrypted
+  • Data is encrypted at rest; the user can delete any card at any time
