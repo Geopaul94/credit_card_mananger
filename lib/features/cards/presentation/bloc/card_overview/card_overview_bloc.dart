@@ -8,6 +8,7 @@ import '../../../domain/entities/payment_card.dart';
 import '../../../domain/usecases/add_card_use_case.dart';
 import '../../../domain/usecases/delete_card_use_case.dart';
 import '../../../domain/usecases/get_saved_cards_use_case.dart';
+import '../../../domain/usecases/reorder_cards_use_case.dart';
 import '../../../domain/usecases/update_card_use_case.dart';
 import 'card_overview_event.dart';
 import 'card_overview_state.dart';
@@ -18,6 +19,7 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
     this._addCard,
     this._updateCard,
     this._deleteCard,
+    this._reorderCards,
     this._backup,
     this._storage,
   ) : super(const CardOverviewState()) {
@@ -25,6 +27,7 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
     on<AddCardRequested>(_onAddCard);
     on<UpdateCardRequested>(_onUpdateCard);
     on<DeleteCardRequested>(_onDeleteCard);
+    on<ReorderCardsRequested>(_onReorder);
     on<MarkCardPaidRequested>(_onMarkPaid);
     on<MarkCardUnpaidRequested>(_onMarkUnpaid);
   }
@@ -33,6 +36,7 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
   final AddCardUseCase _addCard;
   final UpdateCardUseCase _updateCard;
   final DeleteCardUseCase _deleteCard;
+  final ReorderCardsUseCase _reorderCards;
   final BackupCubit _backup;
   final SecureCardStorage _storage;
   final _notif = NotificationService.instance;
@@ -185,6 +189,35 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
   static String? _normalizeCvv(String? raw) {
     final digits = (raw ?? '').replaceAll(RegExp(r'\D'), '');
     return digits.isEmpty ? null : digits;
+  }
+
+  // ── Reorder ───────────────────────────────────────────────────────────────
+
+  Future<void> _onReorder(
+    ReorderCardsRequested event,
+    Emitter<CardOverviewState> emit,
+  ) async {
+    final cards = List<PaymentCard>.from(state.cards);
+    if (event.oldIndex < 0 ||
+        event.oldIndex >= cards.length ||
+        event.newIndex < 0 ||
+        event.newIndex >= cards.length) {
+      return;
+    }
+    final moved = cards.removeAt(event.oldIndex);
+    cards.insert(event.newIndex, moved);
+
+    // Show the new order immediately — making a drag wait on disk I/O would
+    // feel broken — then persist. On a write failure, reload so the UI never
+    // lies about what is actually stored.
+    emit(state.copyWith(cards: cards));
+    try {
+      await _reorderCards(cards);
+    } catch (_) {
+      final saved = await _loadCards();
+      emit(state.copyWith(
+          cards: saved, errorMessage: 'Unable to save the new order.'));
+    }
   }
 
   // ── Delete card ───────────────────────────────────────────────────────────

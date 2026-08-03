@@ -55,6 +55,17 @@ class UpdateCardRequested extends CardOverviewEvent {
   List<Object?> get props => [card];
 }
 
+/// Fired when the user drags a card to a new position in the list.
+class ReorderCardsRequested extends CardOverviewEvent {
+  const ReorderCardsRequested({required this.oldIndex, required this.newIndex});
+
+  final int oldIndex;
+  final int newIndex;
+
+  @override
+  List<Object?> get props => [oldIndex, newIndex];
+}
+
 /// Permanently remove a card.
 class DeleteCardRequested extends CardOverviewEvent {
   const DeleteCardRequested({required this.cardId});

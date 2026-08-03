@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/ui/responsive_layout.dart';
@@ -119,26 +120,48 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }
 
-          // Lazily built: only the cards actually on screen are laid out,
-          // which matters because each one is a full-height gradient card.
+          // Lazily built, and reorderable by long-press drag. Dragging is only
+          // meaningful on the unfiltered list — while searching, the visible
+          // indices don't match stored positions — so search results render as
+          // a plain list.
           return ResponsiveContent(
-            child: ListView.builder(
+            child: ReorderableListView.builder(
+              buildDefaultDragHandles: !isSearching,
               padding: EdgeInsets.fromLTRB(
                 context.spacing(16),
                 context.spacing(16),
                 context.spacing(16),
                 context.spacing(96),
               ),
-              itemCount: visible.length + headers.length,
+              header: Column(
+                children: [
+                  for (final h in headers)
+                    Padding(
+                      padding: EdgeInsets.only(bottom: context.spacing(16)),
+                      child: h,
+                    ),
+                ],
+              ),
+              proxyDecorator: (child, index, animation) =>
+                  _DragProxy(animation: animation, child: child),
+              onReorderStart: (_) => HapticFeedback.mediumImpact(),
+              // Unlike the older onReorder, this callback already accounts for
+              // the dragged item leaving its slot — no off-by-one fix needed.
+              onReorderItem: (oldIndex, newIndex) {
+                if (isSearching) return;
+                context.read<CardOverviewBloc>().add(
+                      ReorderCardsRequested(
+                        oldIndex: oldIndex,
+                        newIndex: newIndex,
+                      ),
+                    );
+              },
+              itemCount: visible.length,
               itemBuilder: (context, index) {
-                if (index < headers.length) {
-                  return Padding(
-                    padding: EdgeInsets.only(bottom: context.spacing(16)),
-                    child: headers[index],
-                  );
-                }
-                final card = visible[index - headers.length];
+                final card = visible[index];
                 return CardTile(
+                  // Reorder animations track items by key, not position.
+                  key: ValueKey(card.id),
                   card: card,
                   isPaid: state.paidCardIds.contains(card.id),
                 );
@@ -147,6 +170,31 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
       ),
+    );
+  }
+}
+
+// ─── Drag proxy ───────────────────────────────────────────────────────────────
+
+/// How a card looks while it is being dragged: slightly lifted and enlarged,
+/// so it reads as "picked up" rather than glitched.
+class _DragProxy extends StatelessWidget {
+  const _DragProxy({required this.animation, required this.child});
+
+  final Animation<double> animation;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) {
+        final t = Curves.easeOut.transform(animation.value);
+        return Transform.scale(
+          scale: 1.0 + 0.03 * t,
+          child: child,
+        );
+      },
     );
   }
 }

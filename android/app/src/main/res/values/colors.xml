@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Splash colours. These deliberately match AppTheme's surfaceContainerLowest
+  in lib/core/theme/app_theme.dart, so the launch screen hands over to the
+  Flutter UI without a colour flash. Change both together.
+-->
+<resources>
+    <color name="splash_background">#F6F7F9</color>
+</resources>

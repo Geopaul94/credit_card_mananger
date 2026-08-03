@@ -17,6 +17,7 @@ import '../../features/cards/domain/repositories/card_repository.dart';
 import '../../features/cards/domain/usecases/add_card_use_case.dart';
 import '../../features/cards/domain/usecases/delete_card_use_case.dart';
 import '../../features/cards/domain/usecases/get_saved_cards_use_case.dart';
+import '../../features/cards/domain/usecases/reorder_cards_use_case.dart';
 import '../../features/cards/domain/usecases/update_card_use_case.dart';
 import '../../features/cards/presentation/bloc/bottom_navigation/bottom_navigation_bloc.dart';
 import '../../features/cards/presentation/bloc/card_overview/card_overview_bloc.dart';
@@ -46,6 +47,7 @@ Future<void> setupDependencies() async {
     ..registerLazySingleton<AddCardUseCase>(() => AddCardUseCase(sl()))
     ..registerLazySingleton<UpdateCardUseCase>(() => UpdateCardUseCase(sl()))
     ..registerLazySingleton<DeleteCardUseCase>(() => DeleteCardUseCase(sl()))
+    ..registerLazySingleton<ReorderCardsUseCase>(() => ReorderCardsUseCase(sl()))
     ..registerLazySingleton<GetSavedCardsUseCase>(
         () => GetSavedCardsUseCase(sl()))
 
@@ -66,5 +68,5 @@ Future<void> setupDependencies() async {
     ..registerFactory<AddCardCubit>(() => AddCardCubit(sl()))
     ..registerFactory(BottomNavigationBloc.new)
     ..registerFactory(
-        () => CardOverviewBloc(sl(), sl(), sl(), sl(), sl(), sl()));
+        () => CardOverviewBloc(sl(), sl(), sl(), sl(), sl(), sl(), sl()));
 }
