@@ -4,6 +4,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:credit_cards/core/theme/card_palette.dart';
+import 'package:credit_cards/core/utils/card_input.dart';
 import 'package:credit_cards/features/cards/domain/entities/payment_card.dart';
 import 'package:credit_cards/features/cards/presentation/widgets/card_brand.dart';
 
@@ -34,14 +35,20 @@ void main() {
       expect(detectCardBrand('371234567890123'), CardBrand.amex);
     });
 
-    test('RuPay wins the shared 60 range', () {
+    test('RuPay takes the 60 and 65 ranges', () {
       expect(detectCardBrand('6012345678901234'), CardBrand.rupay);
       expect(detectCardBrand('6521123456789012'), CardBrand.rupay);
+      // Real Indian cards live here — Slice and Jupiter/CSB sit in 652x-653x,
+      // which US-centric rules would hand to Discover.
+      expect(detectCardBrand('6528551234567890'), CardBrand.rupay);
+      expect(detectCardBrand('6531123456789012'), CardBrand.rupay);
+      expect(detectCardBrand('5081234567890123'), CardBrand.rupay);
     });
 
-    test('Discover keeps 6011 and 644-649', () {
+    test('Discover keeps only the ranges RuPay never uses', () {
       expect(detectCardBrand('6011123456789012'), CardBrand.discover);
       expect(detectCardBrand('6441123456789012'), CardBrand.discover);
+      expect(detectCardBrand('6491123456789012'), CardBrand.discover);
     });
 
     test('Diners Club is 36, 38, or 300-305', () {
@@ -91,6 +98,46 @@ void main() {
     test('always returns a two-stop gradient', () {
       expect(CardPalette.forCard(_card()).length, 2);
       expect(CardPalette.forCard(_card(bank: 'HDFC Bank')).length, 2);
+    });
+  });
+
+  group('displayTitle', () {
+    test('joins bank and card name when they differ', () {
+      final card = _card(bank: 'HDFC Bank').copyWith(cardName: 'Millennia');
+      expect(card.displayTitle, 'HDFC Bank - Millennia');
+    });
+
+    test('does not repeat a name the issuer uses for both', () {
+      // Slice fills both fields with the same word; joining them produced
+      // "Slice - Slice", which reads as a bug rather than a card.
+      final card = _card(bank: 'Slice').copyWith(cardName: 'Slice');
+      expect(card.displayTitle, 'Slice');
+    });
+
+    test('treats a case difference as the same name', () {
+      final card = _card(bank: 'Slice').copyWith(cardName: 'slice');
+      expect(card.displayTitle, 'Slice');
+    });
+  });
+
+  group('smartTitleCase', () {
+    test('capitalises ordinary words', () {
+      expect(smartTitleCase('geo paulson'), 'Geo Paulson');
+    });
+
+    test('keeps acronyms the user typed in capitals', () {
+      expect(smartTitleCase('HDFC bank'), 'HDFC Bank');
+    });
+
+    test('capitalises known bank acronyms typed in lower case', () {
+      // "csb jupiter" was rendering as "Csb Jupiter" on the card face.
+      expect(smartTitleCase('csb jupiter'), 'CSB Jupiter');
+      expect(smartTitleCase('sbi simplyclick'), 'SBI Simplyclick');
+    });
+
+    test('leaves ordinary bank names alone', () {
+      expect(smartTitleCase('yes bank'), 'Yes Bank');
+      expect(smartTitleCase('axis bank'), 'Axis Bank');
     });
   });
 }

@@ -24,13 +24,17 @@ CardBrand detectCardBrand(String cardNumber) {
   if (two >= 51 && two <= 55) return CardBrand.mastercard;
   if (four >= 2221 && four <= 2720) return CardBrand.mastercard;
 
-  // RuPay and Discover overlap in the 60/65 space, so the specific prefixes
-  // are settled before the broad ones: 6011 is Discover's own, while 6521 and
-  // 6522 are RuPay's inside Discover's wider 65 range.
+  // Discover's own ranges first — RuPay never issues in these.
   if (four == 6011) return CardBrand.discover;
-  if (four == 6521 || four == 6522) return CardBrand.rupay;
-  if (two == 65 || (three >= 644 && three <= 649)) return CardBrand.discover;
-  if (two == 60 || three == 508) return CardBrand.rupay;
+  if (three >= 644 && three <= 649) return CardBrand.discover;
+
+  // Everything else across 60x/65x is treated as RuPay. Discover also issues
+  // in the 65 range, but this app's users are in India, where 65 is
+  // overwhelmingly RuPay — Slice, Jupiter/CSB and most co-brands sit in
+  // 652x-653x. A US Discover card starting 65 would be labelled RuPay here;
+  // that trade is deliberate, because showing DISCOVER on an ordinary Indian
+  // card is the mistake people actually see.
+  if (two == 60 || two == 65 || three == 508) return CardBrand.rupay;
 
   if (two == 36 || two == 38 || (three >= 300 && three <= 305)) {
     return CardBrand.dinersClub;

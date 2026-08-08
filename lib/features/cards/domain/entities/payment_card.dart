@@ -65,12 +65,19 @@ class PaymentCard extends Equatable {
 
   /// Title shown in lists / app bar: "Bank - Card Name" when both exist,
   /// otherwise whichever is present (falling back to the card type).
+  ///
+  /// When the bank and the product share a name the two are not joined —
+  /// issuers like Slice put the same word in both fields, and "Slice - Slice"
+  /// reads as a bug rather than a card.
   String get displayTitle {
     final bank = bankName?.trim();
     final name = cardName?.trim();
     final hasBank = bank != null && bank.isNotEmpty;
     final hasName = name != null && name.isNotEmpty;
-    if (hasBank && hasName) return '$bank - $name';
+    if (hasBank && hasName) {
+      if (bank.toLowerCase() == name.toLowerCase()) return bank;
+      return '$bank - $name';
+    }
     if (hasBank) return bank;
     if (hasName) return name;
     return typeLabel;

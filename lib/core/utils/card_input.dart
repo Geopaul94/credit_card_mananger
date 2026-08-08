@@ -148,9 +148,19 @@ bool isExpiredDate(String value) {
   return year < now.year || (year == now.year && month < now.month);
 }
 
+/// Bank names that are acronyms, so they read correctly however they were
+/// typed. Without this, someone entering "csb" gets "Csb" — title case is
+/// right for words and wrong for initialisms.
+const _bankAcronyms = <String>{
+  'csb', 'sbi', 'hdfc', 'icici', 'idfc', 'idbi', 'rbl', 'pnb', 'bob',
+  'iob', 'uco', 'kvb', 'tmb', 'dcb', 'hsbc', 'sib', 'au', 'ubi', 'obc',
+  'boi', 'cub', 'esaf', 'nsdl', 'jk', 'sc',
+};
+
 /// Title-cases each word ("geo paulson" -> "Geo Paulson") while preserving
 /// words the user typed fully capitalised, so bank acronyms survive
-/// ("HDFC bank" -> "HDFC Bank").
+/// ("HDFC bank" -> "HDFC Bank"). Known bank initialisms are capitalised even
+/// when typed in lower case ("csb jupiter" -> "CSB Jupiter").
 String smartTitleCase(String input) {
   return input
       .trim()
@@ -160,6 +170,7 @@ String smartTitleCase(String input) {
         final hasLetters = RegExp(r'[a-zA-Z]').hasMatch(w);
         final isAllCaps = hasLetters && w == w.toUpperCase() && w.length > 1;
         if (isAllCaps) return w; // keep acronyms: HDFC, SBI, ICICI
+        if (_bankAcronyms.contains(w.toLowerCase())) return w.toUpperCase();
         return w[0].toUpperCase() + w.substring(1).toLowerCase();
       })
       .join(' ');
