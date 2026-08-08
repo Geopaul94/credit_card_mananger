@@ -102,7 +102,17 @@ class BackupCubit extends Cubit<BackupState> {
 
   // ── Sign in / out ─────────────────────────────────────────────────────────
 
-  Future<void> signIn() async {
+  /// Connects a Google account and, when it is safe to do so, immediately
+  /// protects what is already on the device by backing it up.
+  ///
+  /// [cards] is the current vault. The automatic backup runs only when there
+  /// are cards to save *and* Drive holds no backup yet — the point is to get a
+  /// first-time user protected the moment they connect, without ever writing
+  /// over a backup they might be about to restore. Someone who reinstalls,
+  /// adds one card, then signs in would otherwise replace a ten-card backup
+  /// with a one-card one. When a backup already exists the user chooses
+  /// explicitly, on the backup screen.
+  Future<void> signIn({List<PaymentCard> cards = const []}) async {
     emit(state.copyWith(phase: BackupPhase.signingIn, clearError: true));
     final account = await _drive.signIn();
     if (account == null) {
@@ -118,6 +128,10 @@ class BackupCubit extends Cubit<BackupState> {
       account: account,
       lastDriveBackup: driveTime,
     ));
+
+    if (cards.isNotEmpty && driveTime == null) {
+      await backupNow(cards);
+    }
   }
 
   Future<void> signOut() async {

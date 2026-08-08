@@ -8,6 +8,24 @@ import '../../cards/presentation/bloc/card_overview/card_overview_event.dart';
 import '../../cards/presentation/bloc/card_overview/card_overview_state.dart';
 import '../../cards/presentation/widgets/section_card.dart';
 
+/// Opens backup & restore, carrying the cubits it needs across the route
+/// boundary. Shared by the profile tile and the empty-vault restore prompt, so
+/// there is one definition of how this screen is reached.
+Future<void> openBackupScreen(BuildContext context) {
+  return Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => MultiBlocProvider(
+        providers: [
+          BlocProvider.value(value: context.read<BackupCubit>()),
+          BlocProvider.value(value: context.read<CardOverviewBloc>()),
+        ],
+        child: const BackupScreen(),
+      ),
+    ),
+  );
+}
+
 class BackupScreen extends StatefulWidget {
   const BackupScreen({super.key});
 
@@ -199,9 +217,16 @@ class _AccountCard extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
+                    // Hand the current vault over so a first-time connection
+                    // protects it straight away.
                     onPressed: backupState.isLoading
                         ? null
-                        : () => context.read<BackupCubit>().signIn(),
+                        : () => context.read<BackupCubit>().signIn(
+                              cards: context
+                                  .read<CardOverviewBloc>()
+                                  .state
+                                  .cards,
+                            ),
                     icon: backupState.phase == BackupPhase.signingIn
                         ? const SizedBox(
                             width: 18,

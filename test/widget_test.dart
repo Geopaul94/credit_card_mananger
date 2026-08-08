@@ -26,6 +26,38 @@ void main() {
     expect(find.byType(FilledButton), findsOneWidget);
   });
 
+  testWidgets('empty state hides the restore prompt when there is no handler',
+      (tester) async {
+    await tester.pumpWidget(_app(const EmptyCardView()));
+
+    expect(find.text('Used Card Vault before?'), findsNothing);
+  });
+
+  testWidgets('empty state invites a returning user to connect Google',
+      (tester) async {
+    var tapped = false;
+    await tester.pumpWidget(_app(EmptyCardView(onRestore: () => tapped = true)));
+
+    expect(find.text('Used Card Vault before?'), findsOneWidget);
+    expect(find.text('Connect Google account'), findsOneWidget);
+
+    await tester.tap(find.text('Connect Google account'));
+    expect(tapped, isTrue);
+  });
+
+  testWidgets('empty state offers a direct restore once an account is connected',
+      (tester) async {
+    await tester.pumpWidget(_app(EmptyCardView(
+      onRestore: () {},
+      connectedEmail: 'geopaul94@gmail.com',
+    )));
+
+    // Nothing left to "connect" — the ask becomes the restore itself.
+    expect(find.text('Restore my cards'), findsOneWidget);
+    expect(find.text('Connect Google account'), findsNothing);
+    expect(find.textContaining('geopaul94@gmail.com'), findsOneWidget);
+  });
+
   testWidgets('card face shows title, masked number, and holder',
       (tester) async {
     const card = PaymentCard(

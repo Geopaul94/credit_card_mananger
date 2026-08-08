@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../../core/backup/backup_cubit.dart';
 import '../../../../../core/ui/responsive_layout.dart';
+import '../../../../backup/presentation/backup_screen.dart';
 import '../../../domain/entities/payment_card.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../bloc/card_overview/card_overview_event.dart';
@@ -76,7 +78,17 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }
 
-          if (state.cards.isEmpty) return const EmptyCardView();
+          // An empty vault is also what a reinstall looks like, so this is
+          // where the offer to restore a Drive backup belongs.
+          if (state.cards.isEmpty) {
+            return BlocBuilder<BackupCubit, BackupState>(
+              buildWhen: (p, c) => p.account != c.account,
+              builder: (context, backupState) => EmptyCardView(
+                connectedEmail: backupState.account?.email,
+                onRestore: () => openBackupScreen(context),
+              ),
+            );
+          }
 
           final showSearch = state.cards.length >= _searchAppearsAt;
           final visible = showSearch ? _filter(state.cards) : state.cards;

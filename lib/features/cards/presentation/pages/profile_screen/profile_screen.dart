@@ -5,7 +5,6 @@ import '../../../../../core/backup/backup_cubit.dart';
 import '../../../../../core/theme/theme_cubit.dart';
 import '../../../../../core/ui/responsive_layout.dart';
 import '../../../../../features/backup/presentation/backup_screen.dart';
-import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../widgets/section_card.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -90,19 +89,7 @@ class _BackupTile extends StatelessWidget {
         }
 
         return GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => MultiBlocProvider(
-                providers: [
-                  BlocProvider.value(value: context.read<BackupCubit>()),
-                  BlocProvider.value(
-                      value: context.read<CardOverviewBloc>()),
-                ],
-                child: const BackupScreen(),
-              ),
-            ),
-          ),
+          onTap: () => openBackupScreen(context),
           child: Container(
             padding: EdgeInsets.symmetric(
               horizontal: context.spacing(14),
