@@ -198,6 +198,74 @@ class _AccountCard extends StatelessWidget {
   final BackupState backupState;
   final ColorScheme scheme;
 
+  /// Signs in, then surfaces an existing Drive backup if one turns up.
+  ///
+  /// No "do you want to back up?" question: the user just tapped sign-in on
+  /// the backup screen, so that is already answered, and [BackupCubit.signIn]
+  /// protects the device silently when there is nothing to lose. The moment
+  /// that genuinely needs a decision is the opposite one — Drive already holds
+  /// a backup, and only the user knows which copy is the good one.
+  Future<void> _connect(BuildContext context) async {
+    final cubit = context.read<BackupCubit>();
+    final cardsBloc = context.read<CardOverviewBloc>();
+    final cardsBefore = cardsBloc.state.cards.length;
+
+    await cubit.signIn(cards: cardsBloc.state.cards);
+    if (!context.mounted) return;
+
+    final backedUpAt = cubit.state.lastDriveBackup;
+    if (cubit.state.account == null || backedUpAt == null) return;
+
+    // A backup made moments ago is the one signIn just took for this device —
+    // nothing to offer.
+    if (cardsBefore == 0 || backedUpAt.isBefore(DateTime.now().subtract(
+          const Duration(minutes: 1),
+        ))) {
+      await _offerRestore(context, backedUpAt, cardsBefore);
+    }
+  }
+
+  Future<void> _offerRestore(
+    BuildContext context,
+    DateTime backedUpAt,
+    int cardsOnDevice,
+  ) async {
+    final date = '${backedUpAt.day}/${backedUpAt.month}/${backedUpAt.year}';
+    final replaces = cardsOnDevice > 0;
+
+    final restore = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Backup found'),
+        content: Text(
+          replaces
+              ? 'Google Drive has a backup from $date.\n\n'
+                  'This device has $cardsOnDevice '
+                  '${cardsOnDevice == 1 ? 'card' : 'cards'}. Restoring '
+                  'replaces them with the backup — anything added on this '
+                  'device since then would be lost.'
+              : 'Google Drive has a backup from $date. '
+                  'Restore your cards to this device?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(replaces ? 'Replace with backup' : 'Restore my cards'),
+          ),
+        ],
+      ),
+    );
+
+    if (restore != true || !context.mounted) return;
+    // The screen's BlocConsumer reloads the card list and shows the
+    // confirmation once the restore succeeds, so this only has to start it.
+    await context.read<BackupCubit>().restore();
+  }
+
   @override
   Widget build(BuildContext context) {
     final account = backupState.account;
@@ -217,16 +285,8 @@ class _AccountCard extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
-                    // Hand the current vault over so a first-time connection
-                    // protects it straight away.
-                    onPressed: backupState.isLoading
-                        ? null
-                        : () => context.read<BackupCubit>().signIn(
-                              cards: context
-                                  .read<CardOverviewBloc>()
-                                  .state
-                                  .cards,
-                            ),
+                    onPressed:
+                        backupState.isLoading ? null : () => _connect(context),
                     icon: backupState.phase == BackupPhase.signingIn
                         ? const SizedBox(
                             width: 18,
