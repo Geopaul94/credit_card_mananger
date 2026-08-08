@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/bottom_navigation/bottom_navigation_bloc.dart';
 import '../bloc/bottom_navigation/bottom_navigation_event.dart';
 import '../bloc/bottom_navigation/bottom_navigation_state.dart';
+import '../bloc/card_overview/card_overview_bloc.dart';
+import '../bloc/card_overview/card_overview_state.dart';
 import '../pages/add_card_screen/add_card_screen.dart';
 import '../pages/home_screen/home_screen.dart';
 import '../pages/profile_screen/profile_screen.dart';
@@ -102,11 +104,17 @@ class _FloatingNavBar extends StatelessWidget {
             ),
             Expanded(
               child: Center(
-                child: _NavItem(
-                  data: _tabs[1],
-                  isSelected: currentIndex == 1,
-                  onTap: () => onTabTap(1),
-                  scheme: scheme,
+                // Rebuilds only when the number of cards needing attention
+                // changes, not on every card-list update.
+                child: BlocSelector<CardOverviewBloc, CardOverviewState, int>(
+                  selector: (state) => state.actionNeededCount,
+                  builder: (context, dueCount) => _NavItem(
+                    data: _tabs[1],
+                    isSelected: currentIndex == 1,
+                    onTap: () => onTabTap(1),
+                    scheme: scheme,
+                    badgeCount: dueCount,
+                  ),
                 ),
               ),
             ),
@@ -136,12 +144,17 @@ class _NavItem extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     required this.scheme,
+    this.badgeCount = 0,
   });
 
   final _TabData data;
   final bool isSelected;
   final VoidCallback onTap;
   final ColorScheme scheme;
+
+  /// Count shown on the icon. Zero hides the badge entirely — a badge reading
+  /// "0" is noise, and the point of one is to be noticed.
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -161,14 +174,26 @@ class _NavItem extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: Icon(
-                data.icon,
-                key: ValueKey(isSelected),
-                size: 22,
-                color: isSelected ? scheme.primary : scheme.onSurfaceVariant,
-              ),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    data.icon,
+                    key: ValueKey(isSelected),
+                    size: 22,
+                    color:
+                        isSelected ? scheme.primary : scheme.onSurfaceVariant,
+                  ),
+                ),
+                if (badgeCount > 0)
+                  Positioned(
+                    top: -5,
+                    right: -7,
+                    child: _CountBadge(count: badgeCount, scheme: scheme),
+                  ),
+              ],
             ),
             const SizedBox(height: 3),
             AnimatedDefaultTextStyle(
@@ -187,6 +212,45 @@ class _NavItem extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Count badge ──────────────────────────────────────────────────────────────
+
+/// The small red count that sits on the reminders bell. Ringed in the bar's
+/// own surface colour so it stays legible where it overlaps the icon.
+class _CountBadge extends StatelessWidget {
+  const _CountBadge({required this.count, required this.scheme});
+
+  final int count;
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    // Past nine the exact number stops mattering and the badge would grow
+    // wide enough to crowd the tab.
+    final label = count > 9 ? '9+' : '$count';
+
+    return Container(
+      constraints: const BoxConstraints(minWidth: 17),
+      height: 17,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: scheme.error,
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: scheme.surface, width: 1.5),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        style: TextStyle(
+          color: scheme.onError,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          height: 1.1,
         ),
       ),
     );

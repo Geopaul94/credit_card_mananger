@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../../core/notifications/notification_service.dart';
 import '../../../../../core/ui/responsive_layout.dart';
 import '../../../domain/entities/payment_card.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
@@ -41,7 +42,7 @@ class ReminderScreen extends StatelessWidget {
           for (final c in withDue) {
             if (state.paidCardIds.contains(c.id)) {
               paid.add(c);
-            } else if ((c.reminderInfo?.delta ?? 99) <= 3) {
+            } else if (state.needsActionNow(c)) {
               actionNeeded.add(c);
             } else {
               upcoming.add(c);
@@ -60,6 +61,9 @@ class ReminderScreen extends StatelessWidget {
               children: [
                 _SummaryHeader(actionCount: actionNeeded.length),
                 SizedBox(height: context.spacing(20)),
+                // Reminders that can never fire are worse than no reminders,
+                // because the user believes they are covered.
+                const _NotificationsOffBanner(),
                 if (actionNeeded.isNotEmpty) ...[
                   const SectionLabel(label: 'DUE NOW'),
                   const SizedBox(height: 10),
@@ -129,6 +133,140 @@ String _maskedLast4(PaymentCard c) {
 }
 
 // ─── Summary header ───────────────────────────────────────────────────────────
+
+// ─── Notifications-off warning ────────────────────────────────────────────────
+
+/// Shown when due dates are set but the OS won't let the app notify.
+///
+/// Without this the failure is completely silent: the app schedules reminders,
+/// the system drops them, and the user only finds out by missing a payment.
+class _NotificationsOffBanner extends StatefulWidget {
+  const _NotificationsOffBanner();
+
+  @override
+  State<_NotificationsOffBanner> createState() =>
+      _NotificationsOffBannerState();
+}
+
+class _NotificationsOffBannerState extends State<_NotificationsOffBanner>
+    with WidgetsBindingObserver {
+  /// null while the first check is still running, so nothing flashes on screen.
+  bool? _enabled;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _check();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Re-check on resume: the user may have just switched notifications on in
+  /// system settings and come back expecting the warning to be gone.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _check();
+  }
+
+  Future<void> _check() async {
+    final enabled = await NotificationService.instance.areNotificationsEnabled();
+    if (mounted) setState(() => _enabled = enabled);
+  }
+
+  Future<void> _turnOn() async {
+    final granted = await NotificationService.instance.ensurePermission();
+    if (!mounted) return;
+    setState(() => _enabled = granted);
+    if (granted) return;
+
+    // Android stops showing the system prompt once it has been refused, so the
+    // only route left is Settings. Say so rather than leaving a dead button.
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Turn on in Settings'),
+        content: const Text(
+          'Android will not ask again once notifications have been refused.\n\n'
+          'Open Settings → Apps → Card Vault → Notifications and turn them on, '
+          'then come back here.',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_enabled != false) return const SizedBox.shrink();
+
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: EdgeInsets.only(bottom: context.spacing(20)),
+      padding: EdgeInsets.all(context.spacing(14)),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(context.spacing(14)),
+        border: Border.all(color: scheme.error.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.notifications_off_outlined,
+            color: scheme.onErrorContainer,
+            size: context.spacing(22),
+          ),
+          SizedBox(width: context.spacing(12)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Reminders can’t reach you',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleSmall
+                      ?.copyWith(color: scheme.onErrorContainer),
+                ),
+                SizedBox(height: context.spacing(2)),
+                Text(
+                  'Notifications are turned off, so none of these will arrive.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: scheme.onErrorContainer),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: context.spacing(8)),
+          FilledButton(
+            onPressed: _turnOn,
+            style: FilledButton.styleFrom(
+              backgroundColor: scheme.error,
+              foregroundColor: scheme.onError,
+              padding: EdgeInsets.symmetric(
+                horizontal: context.spacing(14),
+                vertical: context.spacing(8),
+              ),
+            ),
+            child: const Text('Turn on'),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _SummaryHeader extends StatelessWidget {
   const _SummaryHeader({required this.actionCount});

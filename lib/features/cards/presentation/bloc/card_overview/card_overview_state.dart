@@ -17,6 +17,21 @@ class CardOverviewState extends Equatable {
   /// Card IDs marked as paid in the current session/cycle.
   final Set<String> paidCardIds;
 
+  /// A card needs attention when it is unpaid and inside the reminder window:
+  /// due within three days, due today, or already overdue.
+  ///
+  /// Defined once here because two places show it — the reminders screen's
+  /// "DUE NOW" group and the count on the reminders tab. If they drifted
+  /// apart, the badge would promise a number the list doesn't contain.
+  bool needsActionNow(PaymentCard card) {
+    if (paidCardIds.contains(card.id)) return false;
+    final info = card.reminderInfo;
+    return info != null && info.delta <= 3;
+  }
+
+  /// How many cards need attention right now — the reminders tab badge.
+  int get actionNeededCount => cards.where(needsActionNow).length;
+
   CardOverviewState copyWith({
     List<PaymentCard>? cards,
     bool? isLoading,

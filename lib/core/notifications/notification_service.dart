@@ -22,21 +22,58 @@ class NotificationService {
 
     const androidInit =
         AndroidInitializationSettings('@mipmap/ic_launcher');
+    // Permissions are deliberately NOT requested here — see [ensurePermission].
     const iosInit = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
     );
 
     await _plugin.initialize(
       const InitializationSettings(android: androidInit, iOS: iosInit),
     );
+  }
 
-    // Request Android 13+ notification permission
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
+  // ── Permission ────────────────────────────────────────────────────────────
+
+  AndroidFlutterLocalNotificationsPlugin? get _android =>
+      _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+
+  /// Whether the OS currently lets this app show notifications.
+  ///
+  /// Used to warn the user when reminders are set but silently can't fire.
+  Future<bool> areNotificationsEnabled() async {
+    final android = _android;
+    if (android != null) {
+      return await android.areNotificationsEnabled() ?? true;
+    }
+    return true;
+  }
+
+  /// Asks for notification permission unless it is already granted. Returns
+  /// whether reminders may now be shown.
+  ///
+  /// This runs when a reminder is first scheduled, not at app launch. A
+  /// permission dialog shown before the user has even seen the app is refused
+  /// far more often, and on Android that refusal is effectively permanent —
+  /// it would silently kill every reminder the app ever sets. Asking the
+  /// moment someone picks a due date puts the request in obvious context.
+  Future<bool> ensurePermission() async {
+    final android = _android;
+    if (android != null) {
+      if (await android.areNotificationsEnabled() ?? false) return true;
+      return await android.requestNotificationsPermission() ?? false;
+    }
+
+    final ios = _plugin.resolvePlatformSpecificImplementation<
+        IOSFlutterLocalNotificationsPlugin>();
+    return await ios?.requestPermissions(
+          alert: true,
+          badge: true,
+          sound: true,
+        ) ??
+        true;
   }
 
   // ── Schedule reminders for a card ─────────────────────────────────────────
@@ -47,6 +84,9 @@ class NotificationService {
 
   Future<void> scheduleCardReminders(PaymentCard card) async {
     if (card.dueDay == null) return;
+    // The user has just asked to be reminded, so this is the moment the
+    // permission request makes sense to them.
+    await ensurePermission();
     await cancelCardReminders(card.id); // clear any stale ones first
     await _scheduleAround(card, _nextDueDate(card.dueDay!));
   }
