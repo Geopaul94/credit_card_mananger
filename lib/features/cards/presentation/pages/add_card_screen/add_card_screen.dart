@@ -9,6 +9,7 @@ import '../../../../../core/utils/card_input.dart';
 import '../../bloc/add_card/add_card_cubit.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../bloc/card_overview/card_overview_event.dart';
+import '../../widgets/card_form_field.dart';
 import '../../widgets/due_date_calendar.dart';
 import '../../widgets/section_card.dart';
 
@@ -255,7 +256,7 @@ class _AddCardViewState extends State<_AddCardView> {
                 SectionLabel(label: 'CARD INFO'),
                 const SizedBox(height: 8),
                 SectionCard(children: [
-                  _Field(
+                  CardFormField(
                     controller: _bankCtrl,
                     label: 'Bank Name',
                     hint: 'Axis Bank',
@@ -263,7 +264,7 @@ class _AddCardViewState extends State<_AddCardView> {
                     textCapitalization: TextCapitalization.words,
                   ),
                   const SectionDivider(),
-                  _Field(
+                  CardFormField(
                     controller: _cardNameCtrl,
                     label: 'Card Name',
                     hint: 'Flipkart',
@@ -271,7 +272,7 @@ class _AddCardViewState extends State<_AddCardView> {
                     textCapitalization: TextCapitalization.words,
                   ),
                   const SectionDivider(),
-                  _Field(
+                  CardFormField(
                     controller: _holderCtrl,
                     label: 'Card Holder Name',
                     hint: 'Alex Joseph',
@@ -361,7 +362,7 @@ class _AddCardViewState extends State<_AddCardView> {
                 SectionLabel(label: 'CARD DETAILS'),
                 const SizedBox(height: 8),
                 SectionCard(children: [
-                  _Field(
+                  CardFormField(
                     controller: _numberCtrl,
                     label: 'Card Number',
                     hint: '4532 1234 5678 9012',
@@ -373,7 +374,7 @@ class _AddCardViewState extends State<_AddCardView> {
                   const SectionDivider(),
                   Row(children: [
                     Expanded(
-                      child: _Field(
+                      child: CardFormField(
                         controller: _expiryCtrl,
                         label: 'Expiry',
                         hint: 'MM/YY',
@@ -418,26 +419,17 @@ class _AddCardViewState extends State<_AddCardView> {
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
-                                  state.selectedDueDay != null
-                                      ? 'Reminders on day ${state.selectedDueDay} of every month'
-                                      : 'Pick the day your bill is due',
+                                  'Evening reminders 3 days before, 2 days '
+                                  'before, the day before, and on the due date.',
                                   style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                      color: scheme.onSurface),
+                                      fontSize: 12,
+                                      color: scheme.onSurfaceVariant,
+                                      height: 1.4),
                                 ),
                               ),
                             ]),
-                            const SizedBox(height: 4),
-                            Text(
-                              "You'll get reminders 3 days before, 2 days before, the day before, and on the due date.",
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: scheme.onSurfaceVariant,
-                                  height: 1.4),
-                            ),
                             const SizedBox(height: 16),
-                            DueDateCalendar(
+                            DueDayPicker(
                               selectedDay: state.selectedDueDay,
                               onSelectDay: cubit.selectDueDay,
                               onNoReminder: cubit.clearDueDay,
@@ -476,54 +468,6 @@ class _AddCardViewState extends State<_AddCardView> {
 }
 
 // ─── Sub-widgets ──────────────────────────────────────────────────────────────
-
-class _Field extends StatelessWidget {
-  const _Field({
-    required this.controller,
-    required this.label,
-    required this.hint,
-    required this.prefixIcon,
-    this.validator,
-    this.keyboardType,
-    this.inputFormatters,
-    this.textCapitalization = TextCapitalization.none,
-  });
-
-  final TextEditingController controller;
-  final String label;
-  final String hint;
-  final IconData prefixIcon;
-  final String? Function(String?)? validator;
-  final TextInputType? keyboardType;
-  final List<TextInputFormatter>? inputFormatters;
-
-  /// Name fields open the keyboard already shifted to a capital letter, so
-  /// "axis bank" doesn't have to be corrected afterwards.
-  final TextCapitalization textCapitalization;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      inputFormatters: inputFormatters,
-      textCapitalization: textCapitalization,
-      validator: validator,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        prefixIcon: Icon(prefixIcon, size: 20),
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        errorBorder: InputBorder.none,
-        focusedErrorBorder: InputBorder.none,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      ),
-    );
-  }
-}
 
 /// The security code field. Shown as plain digits — the app is already behind
 /// a biometric lock, and hiding it from its own owner only invites typos.

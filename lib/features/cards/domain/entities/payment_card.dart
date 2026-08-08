@@ -109,16 +109,19 @@ class PaymentCard extends Equatable {
     return '$d$suffix';
   }
 
-  /// The next upcoming due date (today or in the future), or null if no due
-  /// day is set. Used as the billing-cycle key for paid tracking.
-  DateTime? get nextDueDate {
-    if (dueDay == null) return null;
+  /// The next upcoming due date (today or in the future) for a given day of the
+  /// month.
+  ///
+  /// Static so code that only knows a due day — notably the notification
+  /// background handler, which runs in its own isolate with no card loaded —
+  /// gets the same answer as the entity instead of reimplementing it.
+  static DateTime nextDueDateFor(int dueDay) {
     final now = DateTime.now();
     // Clamp to month length so day 31 lands on the month's last day
     // instead of overflowing into the next month.
     int clampDay(int year, int month) {
       final lastDay = DateTime(year, month + 1, 0).day;
-      return dueDay! > lastDay ? lastDay : dueDay!;
+      return dueDay > lastDay ? lastDay : dueDay;
     }
 
     final today = DateTime(now.year, now.month, now.day);
@@ -128,6 +131,11 @@ class PaymentCard extends Equatable {
     }
     return due;
   }
+
+  /// The next upcoming due date (today or in the future), or null if no due
+  /// day is set. Used as the billing-cycle key for paid tracking.
+  DateTime? get nextDueDate =>
+      dueDay == null ? null : nextDueDateFor(dueDay!);
 
   /// Days until the next due date (0 = today, negative = overdue)
   int? get daysUntilDue {

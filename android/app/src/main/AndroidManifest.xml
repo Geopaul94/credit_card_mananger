@@ -3,9 +3,14 @@
     <uses-permission android:name="android.permission.USE_FINGERPRINT"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Reschedules pending reminders after a restart. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+    <!--
+      No SCHEDULE_EXACT_ALARM / USE_EXACT_ALARM on purpose. Reminders are
+      scheduled inexactly (see NotificationService): a bill nudge does not need
+      second precision, Android can batch it to save battery, and Google
+      reserves the exact-alarm permissions for alarm clocks and calendars.
+    -->
     <application
         android:label="Card Vault"
         android:name="${applicationName}"

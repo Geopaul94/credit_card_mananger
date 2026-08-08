@@ -11,8 +11,10 @@ import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../bloc/card_overview/card_overview_event.dart';
 import '../../bloc/card_overview/card_overview_state.dart';
 import '../../widgets/card_tile.dart';
+import '../../widgets/due_date_calendar.dart';
 import '../../widgets/section_card.dart';
 import '../../widgets/swipe_to_confirm.dart';
+import '../edit_card_screen/edit_card_screen.dart';
 import 'widgets/card_back_face.dart';
 import 'widgets/cvv_editor.dart';
 import 'widgets/detail_row.dart';
@@ -46,9 +48,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
 
   // ── Due-date editing ───────────────────────────────────────────────────────
   bool _isDueDayEditing = false;
-  bool _useCustomDay = false;
-  final _customDayCtrl = TextEditingController();
-  final _customDayKey = GlobalKey<FormState>();
 
   // ── Notes ──────────────────────────────────────────────────────────────────
   bool _isNotesEditing = false;
@@ -86,7 +85,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   void dispose() {
     _flipCtrl.dispose();
     _notesCtrl.dispose();
-    _customDayCtrl.dispose();
     super.dispose();
   }
 
@@ -189,44 +187,22 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     setState(() => _isNotesEditing = false);
   }
 
+  /// Saves a new due day (or clears it) and leaves the picker open, so the
+  /// selection is visibly confirmed and a mis-tap can be corrected at once.
   void _saveDueDay(int? day) {
-    final updated =
-        day == null ? _card.copyWith(clearDueDay: true) : _card.copyWith(dueDay: day);
+    final updated = day == null
+        ? _card.copyWith(clearDueDay: true)
+        : _card.copyWith(dueDay: day);
     _dispatch(UpdateCardRequested(card: updated));
-    setState(() {
-      _card = updated;
-      _isDueDayEditing = false;
-      _useCustomDay = false;
-      _customDayCtrl.clear();
-    });
+    HapticFeedback.selectionClick();
+    setState(() => _card = updated);
   }
 
-  Future<void> _openCalendarPicker() async {
-    final now = DateTime.now();
-    final lastDayOfMonth = DateTime(now.year, now.month + 1, 0).day;
-    final safeDay = (_card.dueDay ?? now.day).clamp(1, lastDayOfMonth);
-    final initial = DateTime(now.year, now.month, safeDay);
-
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(now.year, now.month, 1),
-      lastDate: DateTime(now.year, now.month, lastDayOfMonth),
-      helpText: 'SELECT YOUR BILLING DUE DAY',
-      confirmText: 'SET DUE DAY',
-      cancelText: 'CANCEL',
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          datePickerTheme: DatePickerThemeData(
-            headerBackgroundColor: Theme.of(context).colorScheme.primary,
-            headerForegroundColor: Colors.white,
-          ),
-        ),
-        child: child!,
-      ),
-    );
-
-    if (picked != null && mounted) _saveDueDay(picked.day);
+  /// Opens the edit screen and adopts the result immediately, so the card
+  /// visual and details refresh without waiting for the bloc round-trip.
+  Future<void> _editCard() async {
+    final updated = await openEditCardScreen(context, _card);
+    if (updated != null && mounted) setState(() => _card = updated);
   }
 
   Future<void> _confirmDelete() async {
@@ -278,6 +254,11 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           title: Text(_card.displayTitle,
               style: const TextStyle(fontWeight: FontWeight.w700)),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Edit card',
+              onPressed: _editCard,
+            ),
             IconButton(
               icon: Icon(Icons.delete_outline, color: scheme.error),
               tooltip: 'Delete card',
@@ -434,195 +415,21 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 ),
               ),
               PillButton(
-                label: _isDueDayEditing ? 'Cancel' : 'Edit',
+                label: _isDueDayEditing ? 'Done' : 'Edit',
                 color: scheme.primary,
-                onTap: () => setState(() {
-                  _isDueDayEditing = !_isDueDayEditing;
-                  if (!_isDueDayEditing) {
-                    _useCustomDay = false;
-                    _customDayCtrl.clear();
-                  }
-                }),
+                onTap: () =>
+                    setState(() => _isDueDayEditing = !_isDueDayEditing),
               ),
             ]),
 
-            // Editing panel
+            // The same picker used when adding a card, opened on the day
+            // already set so changing it is a single tap.
             if (_isDueDayEditing) ...[
-              const SizedBox(height: 14),
-
-              // 📅 Calendar picker button
-              GestureDetector(
-                onTap: _openCalendarPicker,
-                child: Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: scheme.primary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: scheme.primary.withValues(alpha: 0.3)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.calendar_month_outlined,
-                          size: 18, color: scheme.primary),
-                      const SizedBox(width: 8),
-                      Text('Pick from Calendar',
-                          style: TextStyle(
-                              color: scheme.primary,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14)),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-              Text('— or choose a quick day —',
-                  style:
-                      Theme.of(context).textTheme.labelSmall,
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 10),
-
-              // Quick chips
-              Form(
-                key: _customDayKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        ...[1, 5, 10, 15, 20, 25, 28].map((day) {
-                          final sel = !_useCustomDay && _card.dueDay == day;
-                          return GestureDetector(
-                            onTap: () => _saveDueDay(day),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: sel
-                                    ? scheme.primary
-                                    : scheme.surfaceContainerHigh,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                    color: sel
-                                        ? scheme.primary
-                                        : scheme.outline.withValues(alpha: 0.2)),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text('$day',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14,
-                                      color: sel ? Colors.white : scheme.onSurface)),
-                            ),
-                          );
-                        }),
-                        // Other
-                        GestureDetector(
-                          onTap: () =>
-                              setState(() => _useCustomDay = !_useCustomDay),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            height: 44,
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            decoration: BoxDecoration(
-                              color: _useCustomDay
-                                  ? scheme.primary
-                                  : scheme.surfaceContainerHigh,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                  color: _useCustomDay
-                                      ? scheme.primary
-                                      : scheme.outline.withValues(alpha: 0.2)),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text('Other',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
-                                    color: _useCustomDay
-                                        ? Colors.white
-                                        : scheme.onSurface)),
-                          ),
-                        ),
-                        // No reminder
-                        GestureDetector(
-                          onTap: () => _saveDueDay(null),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            height: 44,
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            decoration: BoxDecoration(
-                              color: _card.dueDay == null
-                                  ? scheme.errorContainer
-                                  : scheme.surfaceContainerHigh,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                  color: _card.dueDay == null
-                                      ? scheme.error
-                                      : scheme.outline.withValues(alpha: 0.2)),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text('No reminder',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
-                                    color: _card.dueDay == null
-                                        ? scheme.onErrorContainer
-                                        : scheme.onSurface)),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_useCustomDay) ...[
-                      const SizedBox(height: 12),
-                      Row(children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _customDayCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelText: 'Enter day (1–31)',
-                              prefixIcon:
-                                  const Icon(Icons.calendar_today_outlined),
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
-                            ),
-                            validator: (v) {
-                              final d = int.tryParse(v?.trim() ?? '');
-                              return (d == null || d < 1 || d > 31)
-                                  ? 'Enter 1–31'
-                                  : null;
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton(
-                          onPressed: () {
-                            if (_customDayKey.currentState!.validate()) {
-                              _saveDueDay(int.parse(_customDayCtrl.text.trim()));
-                            }
-                          },
-                          style: FilledButton.styleFrom(
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 18, vertical: 14),
-                          ),
-                          child: const Text('Save'),
-                        ),
-                      ]),
-                    ],
-                  ],
-                ),
+              const SizedBox(height: 16),
+              DueDayPicker(
+                selectedDay: _card.dueDay,
+                onSelectDay: _saveDueDay,
+                onNoReminder: () => _saveDueDay(null),
               ),
             ],
           ],

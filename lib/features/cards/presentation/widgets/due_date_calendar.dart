@@ -1,24 +1,20 @@
 import 'package:flutter/material.dart';
 
-const _monthNames = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
-const _weekdayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S']; // Sunday-first
-
-/// Inline month-grid picker for a billing **due day** (day-of-month, 1–31).
+/// Inline picker for a billing **due day** — a day of the month, 1–31.
 ///
-/// Renders the current calendar month. Tapping a date selects that day number
-/// as the monthly due day (the bill repeats every month on that day). The
-/// "No reminder" action clears the selection — represented by
-/// [selectedDay] == null.
-class DueDateCalendar extends StatelessWidget {
-  const DueDateCalendar({
+/// Deliberately not a calendar. A due day repeats every month, so weekday
+/// columns and a month header are noise, and worse, a real month grid hides
+/// valid answers: rendered in February it would offer no way to pick 29, 30 or
+/// 31, and in April no way to pick 31. Every day is always selectable here.
+///
+/// Days 29–31 simply fall back to the last day of shorter months when the
+/// reminder is scheduled, which the footnote explains.
+class DueDayPicker extends StatelessWidget {
+  const DueDayPicker({
     super.key,
     required this.selectedDay,
     required this.onSelectDay,
     required this.onNoReminder,
-    this.month,
   });
 
   /// Selected day-of-month (1–31), or null for "no reminder".
@@ -26,69 +22,26 @@ class DueDateCalendar extends StatelessWidget {
   final ValueChanged<int> onSelectDay;
   final VoidCallback onNoReminder;
 
-  /// Month to display; defaults to the current month. Injectable for tests.
-  final DateTime? month;
+  static const _lastDay = 31;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final now = DateTime.now();
-    final shown = month ?? now;
-    final year = shown.year;
-    final m = shown.month;
-    final daysInMonth = DateTime(year, m + 1, 0).day;
-    final isCurrentMonth = year == now.year && m == now.month;
-    final todayDay = isCurrentMonth ? now.day : -1;
-
-    // weekday of the 1st (Mon=1 … Sun=7) → number of leading blanks (Sun-first)
-    final leadingBlanks = DateTime(year, m, 1).weekday % 7;
     final noReminder = selectedDay == null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ── Month header ──────────────────────────────────────────────────
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.calendar_month_outlined, size: 18, color: scheme.primary),
-            const SizedBox(width: 8),
-            Text(
-              '${_monthNames[m - 1]} $year',
-              style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  color: scheme.onSurface),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
         Text(
-          'Repeats every month on the day you pick',
+          selectedDay == null
+              ? 'Pick the day your bill is due'
+              : 'Due on the ${_ordinal(selectedDay!)} of every month',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+          style: Theme.of(context).textTheme.titleSmall,
         ),
         const SizedBox(height: 12),
 
-        // ── Weekday labels ────────────────────────────────────────────────
-        Row(
-          children: _weekdayLabels
-              .map((w) => Expanded(
-                    child: Center(
-                      child: Text(
-                        w,
-                        style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: scheme.onSurfaceVariant),
-                      ),
-                    ),
-                  ))
-              .toList(),
-        ),
-        const SizedBox(height: 8),
-
-        // ── Day grid ──────────────────────────────────────────────────────
+        // ── Day grid, 1–31 ────────────────────────────────────────────────
         GridView.count(
           crossAxisCount: 7,
           shrinkWrap: true,
@@ -96,17 +49,35 @@ class DueDateCalendar extends StatelessWidget {
           mainAxisSpacing: 6,
           crossAxisSpacing: 6,
           children: [
-            for (int i = 0; i < leadingBlanks; i++) const SizedBox.shrink(),
-            for (int day = 1; day <= daysInMonth; day++)
+            for (int day = 1; day <= _lastDay; day++)
               _DayCell(
                 day: day,
                 selected: !noReminder && selectedDay == day,
-                isToday: day == todayDay,
                 onTap: () => onSelectDay(day),
                 scheme: scheme,
               ),
           ],
         ),
+
+        // Only worth saying when it applies to the chosen day.
+        if (selectedDay != null && selectedDay! > 28) ...[
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline, size: 13, color: scheme.onSurfaceVariant),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'In shorter months you will be reminded on the last day '
+                  'instead.',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ),
+            ],
+          ),
+        ],
+
         const SizedBox(height: 14),
 
         // ── No-reminder option ────────────────────────────────────────────
@@ -155,20 +126,28 @@ class DueDateCalendar extends StatelessWidget {
       ],
     );
   }
+
+  static String _ordinal(int day) {
+    if (day >= 11 && day <= 13) return '${day}th';
+    return switch (day % 10) {
+      1 => '${day}st',
+      2 => '${day}nd',
+      3 => '${day}rd',
+      _ => '${day}th',
+    };
+  }
 }
 
 class _DayCell extends StatelessWidget {
   const _DayCell({
     required this.day,
     required this.selected,
-    required this.isToday,
     required this.onTap,
     required this.scheme,
   });
 
   final int day;
   final bool selected;
-  final bool isToday;
   final VoidCallback onTap;
   final ColorScheme scheme;
 
@@ -184,10 +163,7 @@ class _DayCell extends StatelessWidget {
           border: Border.all(
             color: selected
                 ? scheme.primary
-                : isToday
-                    ? scheme.primary.withValues(alpha: 0.5)
-                    : scheme.outline.withValues(alpha: 0.12),
-            width: isToday && !selected ? 1.5 : 1,
+                : scheme.outline.withValues(alpha: 0.12),
           ),
         ),
         alignment: Alignment.center,
@@ -195,8 +171,7 @@ class _DayCell extends StatelessWidget {
           '$day',
           style: TextStyle(
             fontSize: 13,
-            fontWeight:
-                selected || isToday ? FontWeight.w700 : FontWeight.w500,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             color: selected ? Colors.white : scheme.onSurface,
           ),
         ),

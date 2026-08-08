@@ -1,13 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'core/auth/auth_cubit.dart';
+import 'core/notifications/notification_service.dart';
 import 'core/backup/backup_cubit.dart';
 import 'core/di/service_locator.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_cubit.dart';
 import 'features/cards/presentation/bloc/bottom_navigation/bottom_navigation_bloc.dart';
 import 'features/cards/presentation/bloc/card_overview/card_overview_bloc.dart';
+import 'features/cards/presentation/bloc/card_overview/card_overview_event.dart';
 import 'features/cards/presentation/widgets/bottom_navigation_bar.dart';
 import 'features/lock/presentation/lock_screen.dart';
 
@@ -131,7 +135,47 @@ class _MainShell extends StatelessWidget {
         BlocProvider(create: (_) => sl<BottomNavigationBloc>()),
         BlocProvider(create: (_) => sl<CardOverviewBloc>()),
       ],
-      child: const BottomNavigationBarWidget(),
+      child: const _NotificationActionListener(
+        child: BottomNavigationBarWidget(),
+      ),
     );
   }
+}
+
+/// Reloads cards when a notification button is tapped while the app is open.
+///
+/// Those buttons write paid state straight to storage — they have to, because
+/// they usually run with the app closed — so a running app would otherwise sit
+/// on a stale list showing a bill as unpaid after the user just paid it.
+class _NotificationActionListener extends StatefulWidget {
+  const _NotificationActionListener({required this.child});
+  final Widget child;
+
+  @override
+  State<_NotificationActionListener> createState() =>
+      _NotificationActionListenerState();
+}
+
+class _NotificationActionListenerState
+    extends State<_NotificationActionListener> {
+  StreamSubscription<String>? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = NotificationService.instance.onActionApplied.listen((_) {
+      if (mounted) {
+        context.read<CardOverviewBloc>().add(const LoadCardsRequested());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

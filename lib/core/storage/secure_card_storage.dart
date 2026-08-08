@@ -15,7 +15,12 @@ class SecureCardStorage {
 
   static const _cardsKey = 'cv_cards_enc_v1';
   static const _lastBackupKey = 'cv_last_backup_epoch';
-  static const _paidKey = 'cv_paid_v1';
+
+  /// Public because the notification background handler writes paid marks
+  /// directly: it runs in its own isolate with no access to this class's
+  /// dependencies, and the paid map is deliberately the one unencrypted piece
+  /// of state (card ids and dates only), so it can be updated without keys.
+  static const paidMapKey = 'cv_paid_v1';
   static const _autoBackupEnabledKey = 'cv_auto_backup_enabled';
 
   // ── Card persistence ───────────────────────────────────────────────────────
@@ -50,16 +55,16 @@ class SecureCardStorage {
 
   Future<void> savePaidMap(Map<String, DateTime> map) async {
     if (map.isEmpty) {
-      await _prefs.remove(_paidKey);
+      await _prefs.remove(paidMapKey);
       return;
     }
     final encoded =
         jsonEncode(map.map((k, v) => MapEntry(k, v.toIso8601String())));
-    await _prefs.setString(_paidKey, encoded);
+    await _prefs.setString(paidMapKey, encoded);
   }
 
   Map<String, DateTime> loadPaidMap() {
-    final raw = _prefs.getString(_paidKey);
+    final raw = _prefs.getString(paidMapKey);
     if (raw == null || raw.isEmpty) return {};
     try {
       final m = jsonDecode(raw) as Map<String, dynamic>;
