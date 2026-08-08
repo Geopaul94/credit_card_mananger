@@ -56,6 +56,32 @@ void main() {
       expect(_card.copyWith(cardNumber: '4532123456785555').formattedNumber,
           endsWith('5555'));
     });
+
+    // Now that one screen edits every field, emptying an optional one has to
+    // actually empty it. copyWith treats a bare null as "leave unchanged", so
+    // each of these needs its clear flag — the easiest thing to get wrong.
+    test('emptying an optional field clears it rather than keeping the old', () {
+      final stripped = _card.copyWith(
+        clearCvv: true,
+        clearNotes: true,
+        clearDueDay: true,
+        clearCardName: true,
+      );
+      expect(stripped.cvv, isNull);
+      expect(stripped.notes, isNull);
+      expect(stripped.dueDay, isNull);
+      expect(stripped.cardName, isNull);
+      // Untouched fields are still there.
+      expect(stripped.bankName, 'Yes Bank');
+      expect(stripped.holderName, 'Geo Paulson');
+    });
+
+    test('a null without its clear flag leaves the value alone', () {
+      final unchanged = _card.copyWith(cvv: null, notes: null, dueDay: null);
+      expect(unchanged.cvv, '123');
+      expect(unchanged.notes, 'Login: geo@example.com');
+      expect(unchanged.dueDay, 15);
+    });
   });
 
   group('DueDayPicker', () {

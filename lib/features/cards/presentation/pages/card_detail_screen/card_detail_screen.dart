@@ -11,7 +11,6 @@ import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../bloc/card_overview/card_overview_event.dart';
 import '../../bloc/card_overview/card_overview_state.dart';
 import '../../widgets/card_tile.dart';
-import '../../widgets/due_date_calendar.dart';
 import '../../widgets/section_card.dart';
 import '../../widgets/swipe_to_confirm.dart';
 import '../edit_card_screen/edit_card_screen.dart';
@@ -46,13 +45,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   // sits behind a biometric lock, so a second prompt inside it only added
   // friction for the one person who owns the card.
 
-  // ── Due-date editing ───────────────────────────────────────────────────────
-  bool _isDueDayEditing = false;
-
-  // ── Notes ──────────────────────────────────────────────────────────────────
-  bool _isNotesEditing = false;
-  late final TextEditingController _notesCtrl;
-
   // ── Gradient ───────────────────────────────────────────────────────────────
   // Same source as the list tile, so a card keeps its colours when opened.
   List<Color> get _gradient => CardPalette.forCard(_card);
@@ -62,14 +54,15 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   void initState() {
     super.initState();
     _card = widget.card;
-    _notesCtrl = TextEditingController(text: _card.notes ?? '');
 
     _flipCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 580),
     );
-    _flipAnim =
-        CurvedAnimation(parent: _flipCtrl, curve: Curves.easeInOutCubic);
+    _flipAnim = CurvedAnimation(
+      parent: _flipCtrl,
+      curve: Curves.easeInOutCubic,
+    );
     _flipAnim.addListener(() {
       final front = _flipAnim.value <= 0.5;
       if (front != _showFront) setState(() => _showFront = front);
@@ -84,7 +77,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   @override
   void dispose() {
     _flipCtrl.dispose();
-    _notesCtrl.dispose();
     super.dispose();
   }
 
@@ -96,74 +88,26 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     HapticFeedback.selectionClick();
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
-      ..showSnackBar(SnackBar(
-        content: Row(children: [
-          const Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
-          const SizedBox(width: 8),
-          Text('$label copied'),
-        ]),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ));
-  }
-
-  // ── CVV: edit / remove ─────────────────────────────────────────────────────
-
-  /// Adds, changes, or removes the stored security code.
-  Future<void> _editCvv() async {
-    final edit = await showDialog<CvvEdit>(
-      context: context,
-      builder: (_) => CvvEditorDialog(initialValue: _card.cvv),
-    );
-    if (edit == null || !mounted) return;
-
-    if (edit.remove) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Remove CVV?'),
-          content: const Text(
-              'The security code for this card will be deleted. Everything '
-              'else about the card stays as it is.'),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Keep it')),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(ctx).colorScheme.error),
-              child: const Text('Remove'),
-            ),
-          ],
+      ..showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(
+                Icons.check_circle_outline,
+                color: Colors.white,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text('$label copied'),
+            ],
+          ),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
-      if (confirmed != true || !mounted) return;
-
-      final updated = _card.copyWith(clearCvv: true);
-      _dispatch(UpdateCardRequested(card: updated));
-      setState(() => _card = updated);
-      _toast('CVV removed');
-      return;
-    }
-
-    final updated = _card.copyWith(cvv: edit.value);
-    _dispatch(UpdateCardRequested(card: updated));
-    setState(() => _card = updated);
-    _toast('CVV saved');
-  }
-
-  /// Short confirmation message — same look as the "copied" snackbar.
-  void _toast(String message) {
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ));
   }
 
   void _flip() {
@@ -171,32 +115,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     _flipCtrl.isDismissed ? _flipCtrl.forward() : _flipCtrl.reverse();
   }
 
-  void _dispatch(CardOverviewEvent e) => context.read<CardOverviewBloc>().add(e);
-
-  void _saveNotes() {
-    final updated = _card.copyWith(notes: _notesCtrl.text.trim());
-    _dispatch(UpdateCardRequested(card: updated));
-    setState(() {
-      _card = updated;
-      _isNotesEditing = false;
-    });
-  }
-
-  void _cancelNotesEdit() {
-    _notesCtrl.text = _card.notes ?? '';
-    setState(() => _isNotesEditing = false);
-  }
-
-  /// Saves a new due day (or clears it) and leaves the picker open, so the
-  /// selection is visibly confirmed and a mis-tap can be corrected at once.
-  void _saveDueDay(int? day) {
-    final updated = day == null
-        ? _card.copyWith(clearDueDay: true)
-        : _card.copyWith(dueDay: day);
-    _dispatch(UpdateCardRequested(card: updated));
-    HapticFeedback.selectionClick();
-    setState(() => _card = updated);
-  }
+  void _dispatch(CardOverviewEvent e) =>
+      context.read<CardOverviewBloc>().add(e);
 
   /// Opens the edit screen and adopts the result immediately, so the card
   /// visual and details refresh without waiting for the bloc round-trip.
@@ -210,16 +130,17 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete card?'),
-        content:
-            Text('Remove "${_card.displayTitle}" permanently?'),
+        content: Text('Remove "${_card.displayTitle}" permanently?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error),
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
             child: const Text('Delete'),
           ),
         ],
@@ -239,20 +160,30 @@ class _CardDetailScreenState extends State<CardDetailScreen>
 
     return BlocListener<CardOverviewBloc, CardOverviewState>(
       listenWhen: (prev, curr) {
-        final o = prev.cards.firstWhere((c) => c.id == _card.id, orElse: () => _card);
-        final n = curr.cards.firstWhere((c) => c.id == _card.id, orElse: () => _card);
+        final o = prev.cards.firstWhere(
+          (c) => c.id == _card.id,
+          orElse: () => _card,
+        );
+        final n = curr.cards.firstWhere(
+          (c) => c.id == _card.id,
+          orElse: () => _card,
+        );
         return o != n;
       },
       listener: (context, state) {
-        final updated =
-            state.cards.firstWhere((c) => c.id == _card.id, orElse: () => _card);
+        final updated = state.cards.firstWhere(
+          (c) => c.id == _card.id,
+          orElse: () => _card,
+        );
         setState(() => _card = updated);
       },
       child: Scaffold(
         backgroundColor: scheme.surfaceContainerLowest,
         appBar: AppBar(
-          title: Text(_card.displayTitle,
-              style: const TextStyle(fontWeight: FontWeight.w700)),
+          title: Text(
+            _card.displayTitle,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
           actions: [
             IconButton(
               icon: const Icon(Icons.edit_outlined),
@@ -269,8 +200,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
         body: ResponsiveContent(
           child: ListView(
             padding: EdgeInsets.fromLTRB(
-              context.spacing(16), context.spacing(8),
-              context.spacing(16), context.spacing(40),
+              context.spacing(16),
+              context.spacing(8),
+              context.spacing(16),
+              context.spacing(40),
             ),
             children: [
               _buildCardVisual(),
@@ -321,10 +254,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 : Transform(
                     transform: Matrix4.identity()..rotateY(math.pi),
                     alignment: Alignment.center,
-                    child: CardBackFace(
-                      card: _card,
-                      gradientColors: _gradient,
-                    ),
+                    child: CardBackFace(card: _card, gradientColors: _gradient),
                   ),
           );
         },
@@ -336,231 +266,186 @@ class _CardDetailScreenState extends State<CardDetailScreen>
 
   Widget _buildDetailsCard(ColorScheme scheme) {
     final digits = _card.cardNumber.replaceAll(RegExp(r'\D'), '');
-    final last4 = digits.length >= 4 ? digits.substring(digits.length - 4) : '****';
+    final last4 = digits.length >= 4
+        ? digits.substring(digits.length - 4)
+        : '****';
     final masked = '**** **** **** $last4';
 
-    return SectionCard(children: [
-      DetailRow(
-        icon: Icons.credit_card,
-        label: 'Card Number',
-        value: _showNumber ? _card.formattedNumber : masked,
-        onCopy: () => _copy(_card.formattedNumber, 'Card number'),
-        trailing: IconBox(
-          icon: _showNumber ? Icons.visibility_off : Icons.visibility,
-          onTap: () => setState(() => _showNumber = !_showNumber),
+    return SectionCard(
+      children: [
+        DetailRow(
+          icon: Icons.credit_card,
+          label: 'Card Number',
+          value: _showNumber ? _card.formattedNumber : masked,
+          onCopy: () => _copy(_card.formattedNumber, 'Card number'),
+          trailing: IconBox(
+            icon: _showNumber ? Icons.visibility_off : Icons.visibility,
+            onTap: () => setState(() => _showNumber = !_showNumber),
+          ),
         ),
-      ),
-      const SectionDivider(),
-      DetailRow(
-        icon: Icons.date_range_outlined,
-        label: _card.isExpired
-            ? 'Expiry · this card has expired'
-            : _card.isExpiringSoon()
-                ? 'Expiry · expires soon'
-                : 'Expiry',
-        value: _card.expiryDate,
-        onCopy: () => _copy(_card.expiryDate, 'Expiry'),
-        valueColor: _card.isExpired
-            ? scheme.error
-            : _card.isExpiringSoon()
-                ? const Color(0xFFB45309) // amber-700, readable in both themes
-                : null,
-      ),
-      const SectionDivider(),
-      _buildCvvRow(scheme),
-      const SectionDivider(),
-      DetailRow(
-        icon: Icons.person_outline,
-        label: 'Card Holder',
-        value: _card.holderName,
-        onCopy: () => _copy(_card.holderName, 'Holder name'),
-      ),
-    ]);
+        const SectionDivider(),
+        DetailRow(
+          icon: Icons.date_range_outlined,
+          label: _card.isExpired
+              ? 'Expiry · this card has expired'
+              : _card.isExpiringSoon()
+              ? 'Expiry · expires soon'
+              : 'Expiry',
+          value: _card.expiryDate,
+          onCopy: () => _copy(_card.expiryDate, 'Expiry'),
+          valueColor: _card.isExpired
+              ? scheme.error
+              : _card.isExpiringSoon()
+              ? const Color(0xFFB45309) // amber-700, readable in both themes
+              : null,
+        ),
+        const SectionDivider(),
+        _buildCvvRow(scheme),
+        const SectionDivider(),
+        DetailRow(
+          icon: Icons.person_outline,
+          label: 'Card Holder',
+          value: _card.holderName,
+          onCopy: () => _copy(_card.holderName, 'Holder name'),
+        ),
+      ],
+    );
   }
 
-  /// Three states: no code stored (offer to add one), stored and hidden,
-  /// stored and revealed.
+  /// Shows the stored code, or invites adding one. Both lead to the edit
+  /// screen, which owns every field on the card.
   Widget _buildCvvRow(ColorScheme scheme) {
-    if (!_card.hasCvv) return AddCvvRow(onTap: _editCvv);
+    if (!_card.hasCvv) return AddCvvRow(onTap: _editCard);
 
     return DetailRow(
       icon: Icons.lock_outline,
       label: 'CVV',
       value: _card.cvv!,
       onCopy: () => _copy(_card.cvv!, 'CVV'),
-      trailing:
-          IconBox(icon: Icons.edit_outlined, onTap: _editCvv),
     );
   }
 
-  // ── Due-date card ─────────────────────────────────────────────────────────
+  // ── Due-date card (read-only; edited on the edit screen) ─────────────────
 
   Widget _buildDueDateCard(ColorScheme scheme) {
-    return SectionCard(children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header row
-            Row(children: [
-              Icon(Icons.notifications_outlined, size: 16, color: scheme.primary),
+    return SectionCard(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: Row(
+            children: [
+              Icon(
+                Icons.notifications_outlined,
+                size: 16,
+                color: scheme.primary,
+              ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  _card.dueDay != null
-                      ? 'Due on the ${_card.dueDayLabel} every month'
-                      : 'No reminder set',
-                  style: Theme.of(context).textTheme.titleSmall,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _card.dueDay != null
+                          ? 'Due on the ${_card.dueDayLabel} every month'
+                          : 'No reminder set',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _card.dueDay != null
+                          ? 'Evening reminders from 3 days before.'
+                          : 'Add a due date to get payment reminders.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ),
               ),
               PillButton(
-                label: _isDueDayEditing ? 'Done' : 'Edit',
+                label: _card.dueDay != null ? 'Change' : 'Set',
                 color: scheme.primary,
-                onTap: () =>
-                    setState(() => _isDueDayEditing = !_isDueDayEditing),
-              ),
-            ]),
-
-            // The same picker used when adding a card, opened on the day
-            // already set so changing it is a single tap.
-            if (_isDueDayEditing) ...[
-              const SizedBox(height: 16),
-              DueDayPicker(
-                selectedDay: _card.dueDay,
-                onSelectDay: _saveDueDay,
-                onNoReminder: () => _saveDueDay(null),
+                onTap: _editCard,
               ),
             ],
-          ],
+          ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 
-  // ── Notes card ────────────────────────────────────────────────────────────
+  // ── Notes card (read-only; edited on the edit screen) ────────────────────
 
   Widget _buildNotesCard(ColorScheme scheme) {
     final hasNotes = (_card.notes ?? '').trim().isNotEmpty;
 
-    return SectionCard(children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header row
-            Row(children: [
-              Icon(Icons.sticky_note_2_outlined, size: 16, color: scheme.primary),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text('Private notes',
-                    style: Theme.of(context).textTheme.titleSmall),
-              ),
-              if (!_isNotesEditing) ...[
-                // Copy button (only if notes exist)
-                if (hasNotes)
-                  IconBox(
-                    icon: Icons.copy,
-                    onTap: () => _copy(_card.notes!, 'Notes'),
+    return SectionCard(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.sticky_note_2_outlined,
+                    size: 16,
+                    color: scheme.primary,
                   ),
-                const SizedBox(width: 8),
-                PillButton(
-                  label: 'Edit',
-                  color: scheme.primary,
-                  onTap: () => setState(() => _isNotesEditing = true),
-                ),
-              ] else ...[
-                TextButton(
-                  onPressed: _cancelNotesEdit,
-                  style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4)),
-                  child: const Text('Cancel'),
-                ),
-                const SizedBox(width: 4),
-                FilledButton(
-                  onPressed: _saveNotes,
-                  style: FilledButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20)),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    textStyle: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 13),
-                  ),
-                  child: const Text('Save'),
-                ),
-              ],
-            ]),
-            const SizedBox(height: 12),
-
-            // View mode
-            if (!_isNotesEditing)
-              hasNotes
-                  ? Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: scheme.surfaceContainerHigh,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        _card.notes!,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.6),
-                      ),
-                    )
-                  : Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 18),
-                      decoration: BoxDecoration(
-                        color: scheme.surfaceContainerHigh,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color:
-                                scheme.outline.withValues(alpha: 0.15),
-                            style: BorderStyle.solid),
-                      ),
-                      child: Text(
-                        'No notes yet. Tap Edit to add bank login ID,\ncustomer care numbers, or any reminder.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.5),
-                        textAlign: TextAlign.center,
-                      ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Private notes',
+                      style: Theme.of(context).textTheme.titleSmall,
                     ),
-
-            // Edit mode
-            if (_isNotesEditing) ...[
-              TextField(
-                controller: _notesCtrl,
-                maxLines: 6,
-                minLines: 4,
-                autofocus: true,
-                textCapitalization: TextCapitalization.sentences,
-                style: const TextStyle(fontSize: 14, height: 1.6),
-                decoration: InputDecoration(
-                  hintText:
-                      'e.g.  Login ID: user@bank.com\nCustomer care: 1800-xxx-xxxx\nPassword hint: ••••••',
-                  hintStyle: TextStyle(
-                      color: scheme.onSurfaceVariant, fontSize: 13, height: 1.5),
-                  filled: true,
-                  fillColor: scheme.surfaceContainerHigh,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: scheme.primary, width: 1.5),
+                  if (hasNotes) ...[
+                    IconBox(
+                      icon: Icons.copy,
+                      onTap: () => _copy(_card.notes!, 'Notes'),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  PillButton(
+                    label: hasNotes ? 'Change' : 'Add',
+                    color: scheme.primary,
+                    onTap: _editCard,
                   ),
-                  contentPadding: const EdgeInsets.all(14),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(hasNotes ? 14 : 18),
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(12),
+                  border: hasNotes
+                      ? null
+                      : Border.all(
+                          color: scheme.outline.withValues(alpha: 0.15),
+                        ),
+                ),
+                child: Text(
+                  hasNotes
+                      ? _card.notes!
+                      : 'Nothing saved yet. Keep a bank login ID, a customer '
+                            'care number, or any reminder here.',
+                  textAlign: hasNotes ? TextAlign.start : TextAlign.center,
+                  style: hasNotes
+                      ? Theme.of(
+                          context,
+                        ).textTheme.bodyMedium?.copyWith(height: 1.6)
+                      : Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(height: 1.5),
                 ),
               ),
             ],
-          ],
+          ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 
   // ── Mark paid (swipe-to-confirm) ─────────────────────────────────────────
@@ -577,20 +462,24 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           children: [
             const SectionLabel(label: 'PAYMENT STATUS'),
             SizedBox(height: context.spacing(8)),
-            SectionCard(children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: isPaid
-                    ? PaidSuccessBanner(
-                        onUndo: () => _dispatch(
-                            MarkCardUnpaidRequested(cardId: _card.id)),
-                      )
-                    : SwipeToConfirm(
-                        onConfirmed: () =>
-                            _dispatch(MarkCardPaidRequested(cardId: _card.id)),
-                      ),
-              ),
-            ]),
+            SectionCard(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: isPaid
+                      ? PaidSuccessBanner(
+                          onUndo: () => _dispatch(
+                            MarkCardUnpaidRequested(cardId: _card.id),
+                          ),
+                        )
+                      : SwipeToConfirm(
+                          onConfirmed: () => _dispatch(
+                            MarkCardPaidRequested(cardId: _card.id),
+                          ),
+                        ),
+                ),
+              ],
+            ),
           ],
         );
       },
@@ -598,5 +487,4 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-
 }

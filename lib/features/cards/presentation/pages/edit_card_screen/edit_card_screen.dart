@@ -8,6 +8,7 @@ import '../../../domain/entities/payment_card.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../bloc/card_overview/card_overview_event.dart';
 import '../../widgets/card_form_field.dart';
+import '../../widgets/due_date_calendar.dart';
 import '../../widgets/section_card.dart';
 
 /// Opens the edit screen for [card], carrying the bloc across the route.
@@ -25,13 +26,11 @@ Future<PaymentCard?> openEditCardScreen(
   );
 }
 
-/// Corrects a card's identity details — the fields that were previously only
-/// fixable by deleting the card and adding it again, which threw away its
-/// notes, due date, paid history and position.
+/// The one place a card is edited — every field it has, in one form.
 ///
-/// Due date, notes and CVV are deliberately absent: each already has its own
-/// editor on the detail screen, and two ways to change one value is how the
-/// two drift apart.
+/// The detail screen deliberately keeps no editors of its own. Two ways to
+/// change one value is how the two drift apart, so that screen shows and
+/// copies, and this screen changes.
 class EditCardScreen extends StatefulWidget {
   const EditCardScreen({required this.card, super.key});
   final PaymentCard card;
@@ -48,7 +47,10 @@ class _EditCardScreenState extends State<EditCardScreen> {
   late final TextEditingController _cardNameCtrl;
   late final TextEditingController _numberCtrl;
   late final TextEditingController _expiryCtrl;
+  late final TextEditingController _cvvCtrl;
+  late final TextEditingController _notesCtrl;
   late String _cardType;
+  late int? _dueDay;
 
   @override
   void initState() {
@@ -60,7 +62,10 @@ class _EditCardScreenState extends State<EditCardScreen> {
     // Shown grouped, the way it is typed and read on the card itself.
     _numberCtrl = TextEditingController(text: c.formattedNumber);
     _expiryCtrl = TextEditingController(text: c.expiryDate);
+    _cvvCtrl = TextEditingController(text: c.cvv ?? '');
+    _notesCtrl = TextEditingController(text: c.notes ?? '');
     _cardType = c.typeLabel;
+    _dueDay = c.dueDay;
   }
 
   @override
@@ -70,6 +75,8 @@ class _EditCardScreenState extends State<EditCardScreen> {
     _cardNameCtrl.dispose();
     _numberCtrl.dispose();
     _expiryCtrl.dispose();
+    _cvvCtrl.dispose();
+    _notesCtrl.dispose();
     super.dispose();
   }
 
@@ -80,7 +87,10 @@ class _EditCardScreenState extends State<EditCardScreen> {
         _cardNameCtrl.text.trim() != (c.cardName ?? '') ||
         _numberCtrl.text.replaceAll(RegExp(r'\D'), '') != c.cardNumber ||
         _expiryCtrl.text.trim() != c.expiryDate ||
-        _cardType != c.typeLabel;
+        _cvvCtrl.text.replaceAll(RegExp(r'\D'), '') != (c.cvv ?? '') ||
+        _notesCtrl.text.trim() != (c.notes ?? '') ||
+        _cardType != c.typeLabel ||
+        _dueDay != c.dueDay;
   }
 
   Future<void> _save() async {
@@ -91,8 +101,10 @@ class _EditCardScreenState extends State<EditCardScreen> {
     final warnings = <String>[];
     final digits = _numberCtrl.text.replaceAll(RegExp(r'\D'), '');
     if (!luhnCheck(digits)) {
-      warnings.add('The card number fails its checksum — one digit is '
-          'probably mistyped.');
+      warnings.add(
+        'The card number fails its checksum — one digit is '
+        'probably mistyped.',
+      );
     }
     if (isExpiredDate(_expiryCtrl.text)) {
       warnings.add('This card expired on ${_expiryCtrl.text.trim()}.');
@@ -118,8 +130,12 @@ class _EditCardScreenState extends State<EditCardScreen> {
       if (proceed != true || !mounted) return;
     }
 
-    // copyWith keeps everything this screen doesn't touch — id, due day,
-    // notes, CVV and list position all survive the edit.
+    final cvv = _cvvCtrl.text.replaceAll(RegExp(r'\D'), '');
+    final notes = _notesCtrl.text.trim();
+
+    // copyWith keeps what this screen never shows — the card's id, its paid
+    // history and its position in the list. Emptied optional fields need their
+    // clear flag, since a null on its own means "leave unchanged".
     final updated = widget.card.copyWith(
       holderName: _holderCtrl.text.trim(),
       cardNumber: digits,
@@ -127,9 +143,16 @@ class _EditCardScreenState extends State<EditCardScreen> {
       typeLabel: _cardType,
       bankName: _bankCtrl.text.trim().isEmpty ? null : _bankCtrl.text.trim(),
       clearBankName: _bankCtrl.text.trim().isEmpty,
-      cardName:
-          _cardNameCtrl.text.trim().isEmpty ? null : _cardNameCtrl.text.trim(),
+      cardName: _cardNameCtrl.text.trim().isEmpty
+          ? null
+          : _cardNameCtrl.text.trim(),
       clearCardName: _cardNameCtrl.text.trim().isEmpty,
+      cvv: cvv.isEmpty ? null : cvv,
+      clearCvv: cvv.isEmpty,
+      notes: notes.isEmpty ? null : notes,
+      clearNotes: notes.isEmpty,
+      dueDay: _dueDay,
+      clearDueDay: _dueDay == null,
     );
 
     HapticFeedback.lightImpact();
@@ -153,7 +176,8 @@ class _EditCardScreenState extends State<EditCardScreen> {
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error),
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
             child: const Text('Discard'),
           ),
         ],
@@ -177,8 +201,10 @@ class _EditCardScreenState extends State<EditCardScreen> {
       child: Scaffold(
         backgroundColor: scheme.surfaceContainerLowest,
         appBar: AppBar(
-          title: const Text('Edit Card',
-              style: TextStyle(fontWeight: FontWeight.w700)),
+          title: const Text(
+            'Edit Card',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
           centerTitle: true,
         ),
         body: SafeArea(
@@ -190,78 +216,176 @@ class _EditCardScreenState extends State<EditCardScreen> {
                 children: [
                   const SectionLabel(label: 'CARD INFO'),
                   const SizedBox(height: 8),
-                  SectionCard(children: [
-                    CardFormField(
-                      controller: _bankCtrl,
-                      label: 'Bank Name',
-                      hint: 'Axis Bank',
-                      prefixIcon: Icons.account_balance_outlined,
-                      textCapitalization: TextCapitalization.words,
-                    ),
-                    const SectionDivider(),
-                    CardFormField(
-                      controller: _cardNameCtrl,
-                      label: 'Card Name',
-                      hint: 'Flipkart',
-                      prefixIcon: Icons.badge_outlined,
-                      textCapitalization: TextCapitalization.words,
-                    ),
-                    const SectionDivider(),
-                    CardFormField(
-                      controller: _holderCtrl,
-                      label: 'Card Holder Name',
-                      hint: 'Alex Joseph',
-                      prefixIcon: Icons.person_outline,
-                      textCapitalization: TextCapitalization.words,
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Enter holder name'
-                          : null,
-                    ),
-                    const SectionDivider(),
-                    CardTypeSelector(
-                      selected: _cardType,
-                      onChanged: (t) => setState(() => _cardType = t),
-                    ),
-                  ]),
+                  SectionCard(
+                    children: [
+                      CardFormField(
+                        controller: _bankCtrl,
+                        label: 'Bank Name',
+                        hint: 'Axis Bank',
+                        prefixIcon: Icons.account_balance_outlined,
+                        textCapitalization: TextCapitalization.words,
+                      ),
+                      const SectionDivider(),
+                      CardFormField(
+                        controller: _cardNameCtrl,
+                        label: 'Card Name',
+                        hint: 'Flipkart',
+                        prefixIcon: Icons.badge_outlined,
+                        textCapitalization: TextCapitalization.words,
+                      ),
+                      const SectionDivider(),
+                      CardFormField(
+                        controller: _holderCtrl,
+                        label: 'Card Holder Name',
+                        hint: 'Alex Joseph',
+                        prefixIcon: Icons.person_outline,
+                        textCapitalization: TextCapitalization.words,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Enter holder name'
+                            : null,
+                      ),
+                      const SectionDivider(),
+                      CardTypeSelector(
+                        selected: _cardType,
+                        onChanged: (t) => setState(() => _cardType = t),
+                      ),
+                    ],
+                  ),
 
                   const SizedBox(height: 20),
 
                   const SectionLabel(label: 'CARD DETAILS'),
                   const SizedBox(height: 8),
-                  SectionCard(children: [
-                    CardFormField(
-                      controller: _numberCtrl,
-                      label: 'Card Number',
-                      hint: '4532 1234 5678 9012',
-                      prefixIcon: Icons.credit_card,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [CardNumberInputFormatter()],
-                      validator: validateCardNumber,
-                    ),
-                    const SectionDivider(),
-                    CardFormField(
-                      controller: _expiryCtrl,
-                      label: 'Expiry',
-                      hint: 'MM/YY',
-                      prefixIcon: Icons.date_range_outlined,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [ExpiryDateInputFormatter()],
-                      validator: validateExpiry,
-                    ),
-                  ]),
-
-                  const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  SectionCard(
                     children: [
-                      Icon(Icons.info_outline,
-                          size: 14, color: scheme.onSurfaceVariant),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          'Due date, notes and CVV are edited on the card '
-                          'screen itself.',
-                          style: Theme.of(context).textTheme.labelSmall,
+                      CardFormField(
+                        controller: _numberCtrl,
+                        label: 'Card Number',
+                        hint: '4532 1234 5678 9012',
+                        prefixIcon: Icons.credit_card,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [CardNumberInputFormatter()],
+                        validator: validateCardNumber,
+                      ),
+                      const SectionDivider(),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: CardFormField(
+                              controller: _expiryCtrl,
+                              label: 'Expiry',
+                              hint: 'MM/YY',
+                              prefixIcon: Icons.date_range_outlined,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [ExpiryDateInputFormatter()],
+                              validator: validateExpiry,
+                            ),
+                          ),
+                          Container(
+                            width: 1,
+                            height: 56,
+                            color: scheme.outline.withValues(alpha: 0.15),
+                          ),
+                          Expanded(
+                            child: CardFormField(
+                              controller: _cvvCtrl,
+                              label: 'CVV (optional)',
+                              hint: '123',
+                              prefixIcon: Icons.lock_outline,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              validator: validateCvv,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ── Due date ───────────────────────────────────────────
+                  const SectionLabel(label: 'PAYMENT DUE DATE'),
+                  const SizedBox(height: 8),
+                  SectionCard(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.notifications_outlined,
+                                  size: 16,
+                                  color: scheme.primary,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Evening reminders 3 days before, 2 days '
+                                    'before, the day before, and on the due date.',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(height: 1.4),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            DueDayPicker(
+                              selectedDay: _dueDay,
+                              onSelectDay: (d) => setState(() => _dueDay = d),
+                              onNoReminder: () =>
+                                  setState(() => _dueDay = null),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ── Notes ──────────────────────────────────────────────
+                  const SectionLabel(label: 'PRIVATE NOTES'),
+                  const SizedBox(height: 8),
+                  SectionCard(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: TextFormField(
+                          controller: _notesCtrl,
+                          maxLines: 6,
+                          minLines: 4,
+                          textCapitalization: TextCapitalization.sentences,
+                          style: const TextStyle(fontSize: 14, height: 1.6),
+                          decoration: InputDecoration(
+                            hintText:
+                                'e.g.  Login ID: user@bank.com\nCustomer care: '
+                                '1800-xxx-xxxx',
+                            hintStyle: TextStyle(
+                              color: scheme.onSurfaceVariant,
+                              fontSize: 13,
+                              height: 1.5,
+                            ),
+                            filled: true,
+                            fillColor: scheme.surfaceContainerHigh,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: scheme.primary,
+                                width: 1.5,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.all(14),
+                          ),
                         ),
                       ),
                     ],
@@ -273,9 +397,12 @@ class _EditCardScreenState extends State<EditCardScreen> {
                     style: FilledButton.styleFrom(
                       minimumSize: const Size(double.infinity, 54),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       textStyle: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w700),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     icon: const Icon(Icons.save_outlined),
                     label: const Text('Save Changes'),
