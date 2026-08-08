@@ -47,11 +47,17 @@ Data flows: screen → `CardOverviewBloc` event → use case → repository →
   scale, text-scale support (clamped 0.9–1.3), and heavy dedup (SwipeToConfirm,
   SectionLabel ×4, SectionCard/Divider; detail screen split 1587 → ~700 lines).
 
+- **Reminders & editing** (1.0.2) — notification actions (Paid / Snooze / Skip)
+  handled in a background isolate, reminders moved to 9 PM, inexact alarms
+  (exact-alarm permissions dropped), permission asked in context with a
+  recovery banner when denied, reminders-tab badge, a single edit screen
+  owning every field, and one 1–31 due-day picker replacing four controls.
+
 ## Next sprint (proposed)
 
-Verify 1.0.2 on a real device (CVV add/edit/remove, scan, reorder, search,
-splash in dark mode, restore of an old card with no CVV), update the Play
-Console Data Safety form, then upload.
+**Device-test the notification actions** — Paid / Snooze / Skip with the app
+closed is the one thing unit tests cannot cover. Then update the Play Console
+Data Safety form and upload.
 
 ## Known issues / TODO
 
