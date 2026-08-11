@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../../core/theme/card_palette.dart';
 import '../../../../../core/ui/responsive_layout.dart';
@@ -68,10 +69,9 @@ class _CardDetailScreenState extends State<CardDetailScreen>
       if (front != _showFront) setState(() => _showFront = front);
     });
 
-    // Auto-flip to show the back after entering
-    Future.delayed(const Duration(milliseconds: 350), () {
-      if (mounted) _flipCtrl.forward();
-    });
+    // Front stays showing until the user taps the card — it used to
+    // auto-flip to the back on entry, which briefly hid the number/holder
+    // behind an animation nobody asked for.
   }
 
   @override
@@ -86,6 +86,10 @@ class _CardDetailScreenState extends State<CardDetailScreen>
     Clipboard.setData(ClipboardData(text: value));
     // A short tick confirms the copy landed even if the snackbar is glanced past.
     HapticFeedback.selectionClick();
+    _showSnack('$label copied');
+  }
+
+  void _showSnack(String message) {
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
       ..showSnackBar(
@@ -98,7 +102,7 @@ class _CardDetailScreenState extends State<CardDetailScreen>
                 size: 18,
               ),
               const SizedBox(width: 8),
-              Text('$label copied'),
+              Expanded(child: Text(message)),
             ],
           ),
           duration: const Duration(seconds: 2),
@@ -108,6 +112,57 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           ),
         ),
       );
+  }
+
+  /// The card's fields as plain text — same set for both the "Copy" action
+  /// and "Share": number, holder, expiry, and CVV if one is stored. This is
+  /// everything needed to actually use the card elsewhere, so both actions
+  /// carry the same weight and the same warning applies to each.
+  String _detailsText() {
+    final buffer = StringBuffer()
+      ..writeln(_card.displayTitle)
+      ..writeln('Card Number: ${_card.formattedNumber}')
+      ..writeln('Card Holder: ${_card.holderName}')
+      ..writeln('Expiry: ${_card.expiryDate}');
+    if (_card.hasCvv) buffer.write('CVV: ${_card.cvv}');
+    return buffer.toString().trim();
+  }
+
+  void _copyAllDetails() {
+    Clipboard.setData(ClipboardData(text: _detailsText()));
+    HapticFeedback.selectionClick();
+    _showSnack('Card details copied');
+  }
+
+  /// Confirms before handing the OS share sheet a full card number and CVV —
+  /// once shared there's no undo, and it's easy to tap the wrong contact.
+  Future<void> _shareCard() async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Share full card details?'),
+        content: Text(
+          'This includes the full card number'
+          '${_card.hasCvv ? " and CVV" : ""} for "${_card.displayTitle}". '
+          'Anyone you send it to could use it — share it the way you would '
+          'hand over the physical card.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Share'),
+          ),
+        ],
+      ),
+    );
+    if (proceed != true || !mounted) return;
+
+    HapticFeedback.selectionClick();
+    await Share.share(_detailsText(), subject: _card.displayTitle);
   }
 
   void _flip() {
@@ -184,18 +239,6 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             _card.displayTitle,
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              tooltip: 'Edit card',
-              onPressed: _editCard,
-            ),
-            IconButton(
-              icon: Icon(Icons.delete_outline, color: scheme.error),
-              tooltip: 'Delete card',
-              onPressed: _confirmDelete,
-            ),
-          ],
         ),
         body: ResponsiveContent(
           child: ListView(
@@ -207,6 +250,8 @@ class _CardDetailScreenState extends State<CardDetailScreen>
             ),
             children: [
               _buildCardVisual(),
+              SizedBox(height: context.spacing(16)),
+              _buildActionRow(scheme),
               SizedBox(height: context.spacing(24)),
               const SectionLabel(label: 'CARD DETAILS'),
               SizedBox(height: context.spacing(8)),
@@ -259,6 +304,47 @@ class _CardDetailScreenState extends State<CardDetailScreen>
           );
         },
       ),
+    );
+  }
+
+  // ── Action row (Copy / Edit / Share / Delete) ─────────────────────────────
+
+  Widget _buildActionRow(ColorScheme scheme) {
+    return Row(
+      children: [
+        Expanded(
+          child: _ActionButton(
+            icon: Icons.copy_all_outlined,
+            label: 'Copy',
+            onTap: _copyAllDetails,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _ActionButton(
+            icon: Icons.edit_outlined,
+            label: 'Edit',
+            onTap: _editCard,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _ActionButton(
+            icon: Icons.share_outlined,
+            label: 'Share',
+            onTap: _shareCard,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _ActionButton(
+            icon: Icons.delete_outline,
+            label: 'Delete',
+            color: scheme.error,
+            onTap: _confirmDelete,
+          ),
+        ),
+      ],
     );
   }
 
@@ -487,4 +573,60 @@ class _CardDetailScreenState extends State<CardDetailScreen>
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+}
+
+// ─── Action button ────────────────────────────────────────────────────────────
+
+/// One button in the Copy / Edit / Share / Delete row below the card visual.
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  /// Overrides the default primary colour — used for Delete.
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final tint = color ?? scheme.primary;
+
+    return Material(
+      color: scheme.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: scheme.outline.withValues(alpha: 0.12)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 20, color: tint),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: tint,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -39,6 +39,7 @@ dependencies:
   crypto: ^3.0.3
   flutter_secure_storage: ^9.2.2
   shared_preferences: ^2.3.2
+  share_plus: ^10.1.4
 
   # ── Google Drive backup ───────────────────────────────────────────────────
   google_sign_in: ^6.2.1
