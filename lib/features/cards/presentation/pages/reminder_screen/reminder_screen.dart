@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/notifications/notification_service.dart';
@@ -7,6 +8,7 @@ import '../../../domain/entities/payment_card.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../bloc/card_overview/card_overview_event.dart';
 import '../../bloc/card_overview/card_overview_state.dart';
+import '../../widgets/card_chip.dart';
 import '../../widgets/section_card.dart';
 import '../../widgets/swipe_to_confirm.dart';
 
@@ -437,16 +439,45 @@ class _ActiveReminderCard extends StatelessWidget {
 
 // ─── Compact row (upcoming + paid) ───────────────────────────────────────────
 
-class _CompactRow extends StatelessWidget {
+/// "Due Mon, 22 May" — a full weekday-and-date label, matching how the row's
+/// due date is written on the card.
+const _weekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+String _fmtFullDate(DateTime d) =>
+    '${_weekdayNames[d.weekday - 1]}, ${d.day} ${_months[d.month - 1]}';
+
+class _CompactRow extends StatefulWidget {
   const _CompactRow({required this.card, this.paid = false});
   final PaymentCard card;
   final bool paid;
 
   @override
+  State<_CompactRow> createState() => _CompactRowState();
+}
+
+class _CompactRowState extends State<_CompactRow> {
+  bool _snoozed = false;
+
+  Future<void> _snooze() async {
+    await NotificationService.instance.snoozeFromList(widget.card);
+    if (!mounted) return;
+    HapticFeedback.selectionClick();
+    setState(() => _snoozed = true);
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(const SnackBar(
+        content: Text("We'll nudge you again tomorrow evening."),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ));
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final info = card.reminderInfo!;
-    final status = _statusFor(context, info.delta);
+    final text = Theme.of(context).textTheme;
+    final info = widget.card.reminderInfo!;
+    final card = widget.card;
+    final paid = widget.paid;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -454,39 +485,36 @@ class _CompactRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: scheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: scheme.outline.withValues(alpha: 0.12)),
       ),
       child: Row(
         children: [
-          _CardAvatar(card: card, small: true, faded: paid),
+          Opacity(
+            opacity: paid ? 0.55 : 1,
+            child: CardChip(card: card, size: 44),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   card.displayTitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: scheme.onSurface),
+                  style: text.titleSmall,
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  paid
-                      ? 'Paid ✓ · reminders paused'
-                      : 'Due ${_fmtDate(info.date)} · ${status.label}',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: paid
-                          ? const Color(0xFF0D9488)
-                          : scheme.onSurfaceVariant),
+                  paid ? 'Paid ✓ · reminders paused' : 'Due ${_fmtFullDate(info.date)}',
+                  style: text.bodySmall?.copyWith(
+                    color: paid ? const Color(0xFF0D9488) : null,
+                  ),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           if (paid)
             TextButton(
               onPressed: () => context
@@ -500,8 +528,43 @@ class _CompactRow extends StatelessWidget {
               child: const Text('Undo'),
             )
           else
-            _StatusChip(status: status),
+            _Pill(
+              label: _snoozed ? 'Snoozed' : 'Snooze',
+              enabled: !_snoozed,
+              onTap: _snooze,
+            ),
         ],
+      ),
+    );
+  }
+}
+
+/// The cream pill button on a compact row — "Snooze" / "Snoozed".
+class _Pill extends StatelessWidget {
+  const _Pill({required this.label, required this.onTap, this.enabled = true});
+  final String label;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+            color: enabled ? scheme.onSurface : scheme.onSurfaceVariant,
+          ),
+        ),
       ),
     );
   }
@@ -510,31 +573,24 @@ class _CompactRow extends StatelessWidget {
 // ─── Shared bits ──────────────────────────────────────────────────────────────
 
 class _CardAvatar extends StatelessWidget {
-  const _CardAvatar(
-      {required this.card, this.small = false, this.faded = false});
+  const _CardAvatar({required this.card});
   final PaymentCard card;
-  final bool small;
-  final bool faded;
 
   @override
   Widget build(BuildContext context) {
-    final size = small ? 38.0 : 46.0;
-    return Opacity(
-      opacity: faded ? 0.55 : 1,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: _gradientFor(card.typeLabel),
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(small ? 11 : 13),
+    return Container(
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: _gradientFor(card.typeLabel),
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: Icon(Icons.credit_card,
-            color: Colors.white.withValues(alpha: 0.95), size: small ? 18 : 22),
+        borderRadius: BorderRadius.circular(13),
       ),
+      child: Icon(Icons.credit_card,
+          color: Colors.white.withValues(alpha: 0.95), size: 22),
     );
   }
 }

@@ -3,13 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/backup/backup_cubit.dart';
-import '../../../../../core/theme/card_palette.dart';
 import '../../../../../core/ui/responsive_layout.dart';
 import '../../../../backup/presentation/backup_screen.dart';
 import '../../../domain/entities/payment_card.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../bloc/card_overview/card_overview_event.dart';
 import '../../bloc/card_overview/card_overview_state.dart';
+import '../../widgets/card_chip.dart';
 import '../../widgets/card_skeleton.dart';
 import '../../widgets/card_tile.dart';
 import '../../widgets/empty_card_view.dart';
@@ -446,7 +446,7 @@ class _NextBillHero extends StatelessWidget {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    _MiniChip(card: next.card),
+                    CardChip(card: next.card),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -464,61 +464,6 @@ class _NextBillHero extends StatelessWidget {
                 ),
               ],
             ),
-    );
-  }
-}
-
-/// Small colour swatch identifying the soonest-due card — same colour and
-/// bank label as the full gradient card below, so the hero and the card it
-/// points at are visibly the same card, not just a generic icon.
-class _MiniChip extends StatelessWidget {
-  const _MiniChip({required this.card});
-  final PaymentCard card;
-
-  String _shortLabel() {
-    final bank = card.bankName?.trim();
-    if (bank == null || bank.isEmpty) return card.typeLabel;
-    return bank.length <= 6 ? bank.toUpperCase() : bank.substring(0, 6).toUpperCase();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final digits = card.cardNumber.replaceAll(RegExp(r'\D'), '');
-    final last4 = digits.length >= 4 ? digits.substring(digits.length - 4) : '';
-
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: CardPalette.forCard(card).first,
-        borderRadius: BorderRadius.circular(9),
-      ),
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            _shortLabel(),
-            maxLines: 1,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 8,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.2,
-            ),
-          ),
-          if (last4.isNotEmpty)
-            Text(
-              last4,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.85),
-                fontSize: 9,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-        ],
-      ),
     );
   }
 }

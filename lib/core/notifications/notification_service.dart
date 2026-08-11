@@ -148,6 +148,39 @@ class NotificationService {
     );
   }
 
+  /// Adds one extra nudge for tomorrow evening, on top of whatever's already
+  /// scheduled — the Reminders list's "Snooze" button on a card that isn't
+  /// due soon yet.
+  ///
+  /// Distinct from [_applySnooze]: that one runs when a reminder that has
+  /// already fired gets tapped, and its copy ("you snoozed this yesterday")
+  /// assumes that context. This is requested proactively, days or weeks
+  /// before the due date, so it needs its own message and must not cancel
+  /// any of the real due-date reminders the way [_applySnooze] does.
+  Future<void> snoozeFromList(PaymentCard card) async {
+    if (card.dueDay == null) return;
+    await ensurePermission();
+
+    final now = DateTime.now();
+    final tomorrow = DateTime(now.year, now.month, now.day + 1, _reminderHour);
+    final label = card.dueDayLabel;
+
+    await _schedule(
+      id: _notifId(card.id, _snoozeSlot),
+      title: '💳 ${card.displayTitle} payment reminder',
+      body: label.isEmpty
+          ? 'A quick nudge, as requested.'
+          : 'A quick nudge, as requested — due on the $label.',
+      scheduledAt: tomorrow,
+      payload: jsonEncode({
+        'id': card.id,
+        'title': card.displayTitle,
+        'dueDay': card.dueDay,
+        'label': label,
+      }),
+    );
+  }
+
   /// Cancel current-cycle reminders and reschedule for next month — used when
   /// the user marks a card paid, so they aren't nudged again this cycle.
   Future<void> rescheduleForNextMonth(PaymentCard card) async {
