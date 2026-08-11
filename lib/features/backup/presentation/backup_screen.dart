@@ -100,6 +100,13 @@ class _BackupScreenState extends State<BackupScreen> {
               children: [
                 // ── Header banner ──────────────────────────────────────────
                 _HeaderBanner(scheme: scheme),
+                SizedBox(height: context.spacing(14)),
+
+                // ── Offline-first reassurance ────────────────────────────────
+                // Read before deciding whether to bother connecting at all —
+                // states plainly that this is optional and what's actually at
+                // stake either way, not just what the feature does.
+                _OfflineNote(scheme: scheme),
                 SizedBox(height: context.spacing(20)),
 
                 // ── Google account section ─────────────────────────────────
@@ -187,6 +194,49 @@ class _HeaderBanner extends StatelessWidget {
           ),
         ),
       ]),
+    );
+  }
+}
+
+// ─── Offline-first note ───────────────────────────────────────────────────────
+
+/// States the actual tradeoff plainly, before the user decides whether
+/// connecting is worth it: the app works fully offline and the data is
+/// already encrypted either way, but skipping backup means a lost or wiped
+/// phone takes the cards with it.
+class _OfflineNote extends StatelessWidget {
+  const _OfflineNote({required this.scheme});
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.wifi_off_rounded, size: 18, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'This app works fully offline — connecting Google Drive is '
+              'optional. Your cards are already encrypted on this device, so '
+              'no one else can read them either way. The only reason to '
+              'connect: if the app is deleted or the phone is reset without '
+              'a backup, that data is gone for good.',
+              style: TextStyle(
+                fontSize: 12,
+                color: scheme.onSurfaceVariant,
+                height: 1.45,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
