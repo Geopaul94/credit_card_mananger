@@ -17,6 +17,7 @@ enum BackupPhase {
   signingIn,
   backingUp,
   restoring,
+  deletingCloud,
   success,
   error,
 }
@@ -41,7 +42,8 @@ class BackupState extends Equatable {
   bool get isLoading =>
       phase == BackupPhase.signingIn ||
       phase == BackupPhase.backingUp ||
-      phase == BackupPhase.restoring;
+      phase == BackupPhase.restoring ||
+      phase == BackupPhase.deletingCloud;
 
   BackupState copyWith({
     BackupPhase? phase,
@@ -221,6 +223,29 @@ class BackupCubit extends Cubit<BackupState> {
       emit(state.copyWith(
         phase: BackupPhase.error,
         errorMessage: 'Restore failed: ${e.toString()}',
+      ));
+    }
+  }
+
+  // ── Delete cloud backup ───────────────────────────────────────────────────
+
+  /// Removes the Drive backup only — the device's own cards are never
+  /// touched by this. The confirmation that this is what the user wants
+  /// happens in the UI before this is called; this method just does it.
+  Future<void> deleteCloudBackup() async {
+    if (state.account == null) return;
+    emit(state.copyWith(phase: BackupPhase.deletingCloud, clearError: true));
+    try {
+      await _drive.deleteBackup();
+      emit(state.copyWith(
+        phase: BackupPhase.idle,
+        clearDriveTime: true,
+        clearRestoredCount: true,
+      ));
+    } catch (e) {
+      emit(state.copyWith(
+        phase: BackupPhase.error,
+        errorMessage: 'Could not delete the cloud backup: ${e.toString()}',
       ));
     }
   }

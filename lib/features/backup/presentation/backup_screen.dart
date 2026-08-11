@@ -133,6 +133,17 @@ class _BackupScreenState extends State<BackupScreen> {
                 _RestoreCard(backupState: backupState, scheme: scheme),
                 SizedBox(height: context.spacing(20)),
 
+                // ── Danger zone ───────────────────────────────────────────
+                // Only worth showing once there's actually a cloud copy to
+                // remove — an option to delete nothing is just clutter.
+                if (backupState.account != null &&
+                    backupState.lastDriveBackup != null) ...[
+                  SectionLabel(label: 'DANGER ZONE'),
+                  SizedBox(height: context.spacing(8)),
+                  _DeleteBackupRow(backupState: backupState, scheme: scheme),
+                  SizedBox(height: context.spacing(20)),
+                ],
+
                 // ── Info card ──────────────────────────────────────────────
                 _InfoCard(scheme: scheme),
               ],
@@ -595,6 +606,106 @@ class _RestoreCard extends StatelessWidget {
     if (ok == true && context.mounted) {
       context.read<BackupCubit>().restore();
     }
+  }
+}
+
+// ─── Delete cloud backup ──────────────────────────────────────────────────────
+
+/// A single tappable row — icon, title, subtitle, chevron — matching the
+/// shared design. Deletes only the Drive copy; the device's own cards are
+/// untouched, which the subtitle and the confirmation dialog both say
+/// explicitly, since "delete" next to "backup" invites the wrong assumption.
+class _DeleteBackupRow extends StatelessWidget {
+  const _DeleteBackupRow({required this.backupState, required this.scheme});
+  final BackupState backupState;
+  final ColorScheme scheme;
+
+  Future<void> _confirmAndDelete(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete cloud backup?'),
+        content: const Text(
+          'This removes the encrypted backup from Google Drive only. Your '
+          'cards stay exactly as they are on this device — there is nothing '
+          'to restore from afterwards until you back up again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: scheme.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+
+    final cubit = context.read<BackupCubit>();
+    await cubit.deleteCloudBackup();
+    if (!context.mounted) return;
+    if (cubit.state.phase != BackupPhase.error) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(const SnackBar(
+          content: Text('Cloud backup deleted. Local cards are unchanged.'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
+        ));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final busy = backupState.phase == BackupPhase.deletingCloud;
+
+    return _SectionCard(children: [
+      InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: busy ? null : () => _confirmAndDelete(context),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: scheme.errorContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: busy
+                  ? Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: scheme.onErrorContainer,
+                      ),
+                    )
+                  : Icon(Icons.delete_outline,
+                      color: scheme.onErrorContainer, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Delete cloud backup',
+                      style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 2),
+                  Text('Local vault stays',
+                      style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
+          ]),
+        ),
+      ),
+    ]);
   }
 }
 

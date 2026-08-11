@@ -157,6 +157,18 @@ class GoogleDriveService {
     return utf8.decode(bytes);
   }
 
+  // ── Delete ─────────────────────────────────────────────────────────────────
+
+  /// Removes the backup file from Drive. The device's own cards are untouched
+  /// — this only affects what a future restore would pull down. A no-op if
+  /// there is no backup to delete.
+  Future<void> deleteBackup() async {
+    final api = await _api();
+    final fileId = await _existingFileId(api);
+    if (fileId == null) return;
+    await api.files.delete(fileId);
+  }
+
   // ── Metadata ───────────────────────────────────────────────────────────────
 
   Future<DateTime?> lastBackupTime() async {
