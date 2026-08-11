@@ -309,16 +309,28 @@ class WarmTheme {
   }
 
   // ── Type scale ─────────────────────────────────────────────────────────────
-  // Headings use a heavier weight to read as the mockups' bold display type.
-  // A true serif for "Card Vault" / "My cards" would need a bundled display
-  // font (e.g. Fraunces, Lora, Playfair Display — all free/OFL) which isn't
-  // wired in yet; swap this in once a specific one is chosen.
+  // Big display headlines ("My cards", "Card Vault") use Playfair Display, a
+  // bundled serif — matches the mockups' editorial look, which heavy-weight
+  // Inter alone couldn't. Everything titleLarge and smaller (card titles, list
+  // rows, buttons, labels) stays on Inter: serif at UI sizes reads as
+  // old-fashioned rather than elegant, and Inter is what the rest of the app's
+  // widget theming (buttons, inputs, chips) is already built around.
+  static const _displayFont = 'PlayfairDisplay';
+
   static TextTheme _textTheme(Color onSurface, Color onVariant) {
     TextStyle h(double size, FontWeight w, double spacing) => TextStyle(
           fontSize: size,
           fontWeight: w,
           letterSpacing: spacing,
           height: 1.2,
+          color: onSurface,
+        );
+    TextStyle display(double size, FontWeight w, double spacing) => TextStyle(
+          fontFamily: _displayFont,
+          fontSize: size,
+          fontWeight: w,
+          letterSpacing: spacing,
+          height: 1.15,
           color: onSurface,
         );
     TextStyle body(double size, FontWeight w) => TextStyle(
@@ -330,9 +342,9 @@ class WarmTheme {
         );
 
     return TextTheme(
-      displaySmall: h(34, FontWeight.w900, -0.6),
-      headlineMedium: h(26, FontWeight.w800, -0.4),
-      headlineSmall: h(22, FontWeight.w800, -0.3),
+      displaySmall: display(34, FontWeight.w800, -0.2),
+      headlineMedium: display(26, FontWeight.w800, -0.2),
+      headlineSmall: display(22, FontWeight.w700, -0.1),
       titleLarge: h(19, FontWeight.w800, -0.2),
       titleMedium: h(16, FontWeight.w700, -0.1),
       titleSmall: h(14, FontWeight.w700, 0),

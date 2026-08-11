@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../backup/presentation/backup_screen.dart';
 import '../bloc/bottom_navigation/bottom_navigation_bloc.dart';
 import '../bloc/bottom_navigation/bottom_navigation_event.dart';
 import '../bloc/bottom_navigation/bottom_navigation_state.dart';
 import '../bloc/card_overview/card_overview_bloc.dart';
 import '../bloc/card_overview/card_overview_state.dart';
-import '../pages/add_card_screen/add_card_screen.dart';
 import '../pages/home_screen/home_screen.dart';
 import '../pages/profile_screen/profile_screen.dart';
 import '../pages/reminder_screen/reminder_screen.dart';
 
+/// Four equal destinations — Cards, Reminders, Backup, You — with no centre
+/// action slot. Adding a card is now a floating button on the Cards screen
+/// itself (top-right, above the bar), not a slot inside the nav pill.
 class BottomNavigationBarWidget extends StatelessWidget {
   const BottomNavigationBarWidget({super.key});
 
@@ -24,16 +27,17 @@ class BottomNavigationBarWidget extends StatelessWidget {
             children: const [
               HomeScreen(),
               ReminderScreen(),
+              // BackupCubit and CardOverviewBloc are already ancestors here
+              // (provided at the app root and in _MainShell), so the screen
+              // can sit directly in the tab stack with no extra wrapping.
+              BackupScreen(),
               ProfileScreen(),
             ],
           ),
-          // ── Floating pill bottom nav ──────────────────────────────────────
           bottomNavigationBar: _FloatingNavBar(
             currentIndex: state.currentIndex,
-            onTabTap: (i) => context
-                .read<BottomNavigationBloc>()
-                .add(ChangeTabEvent(i)),
-            onAddTap: () => openAddCardScreen(context),
+            onTabTap: (i) =>
+                context.read<BottomNavigationBloc>().add(ChangeTabEvent(i)),
           ),
         );
       },
@@ -44,20 +48,16 @@ class BottomNavigationBarWidget extends StatelessWidget {
 // ─── Floating pill nav bar ────────────────────────────────────────────────────
 
 class _FloatingNavBar extends StatelessWidget {
-  const _FloatingNavBar({
-    required this.currentIndex,
-    required this.onTabTap,
-    required this.onAddTap,
-  });
+  const _FloatingNavBar({required this.currentIndex, required this.onTabTap});
 
   final int currentIndex;
   final ValueChanged<int> onTabTap;
-  final VoidCallback onAddTap;
 
   static const _tabs = [
-    _TabData(icon: Icons.home_rounded, label: 'Home'),
+    _TabData(icon: Icons.credit_card_outlined, label: 'Cards'),
     _TabData(icon: Icons.notifications_rounded, label: 'Reminders'),
-    _TabData(icon: Icons.person_rounded, label: 'Profile'),
+    _TabData(icon: Icons.cloud_outlined, label: 'Backup'),
+    _TabData(icon: Icons.person_rounded, label: 'You'),
   ];
 
   @override
@@ -81,55 +81,37 @@ class _FloatingNavBar extends StatelessWidget {
           border: Border.all(color: scheme.outline.withValues(alpha: 0.12)),
           boxShadow: [
             BoxShadow(
-              color: (isDark ? Colors.black : const Color(0xFF1E293B))
+              color: (isDark ? Colors.black : scheme.shadow)
                   .withValues(alpha: isDark ? 0.4 : 0.1),
               blurRadius: 20,
               offset: const Offset(0, 6),
             ),
           ],
         ),
-        // Four equal slots — Home · Reminders · Add · Profile — so everything
-        // is evenly spaced with no dead gap on the right.
         child: Row(
-          children: [
-            Expanded(
-              child: Center(
-                child: _NavItem(
-                  data: _tabs[0],
-                  isSelected: currentIndex == 0,
-                  onTap: () => onTabTap(0),
-                  scheme: scheme,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Center(
-                // Rebuilds only when the number of cards needing attention
-                // changes, not on every card-list update.
-                child: BlocSelector<CardOverviewBloc, CardOverviewState, int>(
-                  selector: (state) => state.actionNeededCount,
-                  builder: (context, dueCount) => _NavItem(
-                    data: _tabs[1],
-                    isSelected: currentIndex == 1,
-                    onTap: () => onTabTap(1),
+          children: List.generate(_tabs.length, (i) {
+            // Reminders (index 1) carries a count of bills needing attention.
+            // Rebuilds only on that count, via BlocSelector, not on every
+            // card-list change.
+            final item = i == 1
+                ? BlocSelector<CardOverviewBloc, CardOverviewState, int>(
+                    selector: (state) => state.actionNeededCount,
+                    builder: (context, dueCount) => _NavItem(
+                      data: _tabs[i],
+                      isSelected: currentIndex == i,
+                      onTap: () => onTabTap(i),
+                      scheme: scheme,
+                      badgeCount: dueCount,
+                    ),
+                  )
+                : _NavItem(
+                    data: _tabs[i],
+                    isSelected: currentIndex == i,
+                    onTap: () => onTabTap(i),
                     scheme: scheme,
-                    badgeCount: dueCount,
-                  ),
-                ),
-              ),
-            ),
-            Expanded(child: Center(child: _AddFab(onTap: onAddTap, scheme: scheme))),
-            Expanded(
-              child: Center(
-                child: _NavItem(
-                  data: _tabs[2],
-                  isSelected: currentIndex == 2,
-                  onTap: () => onTabTap(2),
-                  scheme: scheme,
-                ),
-              ),
-            ),
-          ],
+                  );
+            return Expanded(child: Center(child: item));
+          }),
         ),
       ),
     );
@@ -158,17 +140,21 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The selected tab is a solid dark pill with light content — inverseSurface
+    // / onInverseSurface is the exact Material pairing for that contrast, and
+    // it already flips correctly between light and dark mode.
+    final bg = isSelected ? scheme.inverseSurface : Colors.transparent;
+    final fg = isSelected ? scheme.onInverseSurface : scheme.onSurfaceVariant;
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected
-              ? scheme.primary.withValues(alpha: 0.12)
-              : Colors.transparent,
+          color: bg,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
@@ -182,9 +168,8 @@ class _NavItem extends StatelessWidget {
                   child: Icon(
                     data.icon,
                     key: ValueKey(isSelected),
-                    size: 22,
-                    color:
-                        isSelected ? scheme.primary : scheme.onSurfaceVariant,
+                    size: 20,
+                    color: fg,
                   ),
                 ),
                 if (badgeCount > 0)
@@ -200,11 +185,8 @@ class _NavItem extends StatelessWidget {
               duration: const Duration(milliseconds: 200),
               style: TextStyle(
                 fontSize: 10,
-                fontWeight:
-                    isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected
-                    ? scheme.primary
-                    : scheme.onSurfaceVariant,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: fg,
               ),
               child: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -252,41 +234,6 @@ class _CountBadge extends StatelessWidget {
           fontWeight: FontWeight.w800,
           height: 1.1,
         ),
-      ),
-    );
-  }
-}
-
-// ─── Center "+" add button ────────────────────────────────────────────────────
-
-class _AddFab extends StatelessWidget {
-  const _AddFab({required this.onTap, required this.scheme});
-  final VoidCallback onTap;
-  final ColorScheme scheme;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [scheme.primary, scheme.secondary],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: scheme.primary.withValues(alpha: 0.45),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
       ),
     );
   }

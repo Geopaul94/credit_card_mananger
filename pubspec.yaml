@@ -93,6 +93,14 @@ flutter:
         - asset: assets/fonts/Inter.ttf
         - asset: assets/fonts/Inter-Italic.ttf
           style: italic
+    # Used only for large headline text ("My cards", "Card Vault") — Inter
+    # stays the body/UI font everywhere else. Variable font: Flutter renders
+    # the nearest weight to whatever's requested (700-900 for our headlines),
+    # so one file covers the whole range. OFL-licensed, see
+    # assets/fonts/PlayfairDisplay-OFL.txt.
+    - family: PlayfairDisplay
+      fonts:
+        - asset: assets/fonts/PlayfairDisplay-VariableFont.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

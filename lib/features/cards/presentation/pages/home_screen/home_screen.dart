@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/backup/backup_cubit.dart';
+import '../../../../../core/theme/card_palette.dart';
 import '../../../../../core/ui/responsive_layout.dart';
 import '../../../../backup/presentation/backup_screen.dart';
 import '../../../domain/entities/payment_card.dart';
@@ -12,6 +13,7 @@ import '../../bloc/card_overview/card_overview_state.dart';
 import '../../widgets/card_skeleton.dart';
 import '../../widgets/card_tile.dart';
 import '../../widgets/empty_card_view.dart';
+import '../add_card_screen/add_card_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,12 +23,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  /// Below this many cards the list is scannable by eye and a search box is
-  /// just another thing on screen.
-  static const _searchAppearsAt = 5;
-
   final _searchCtrl = TextEditingController();
   String _query = '';
+  bool _searchOpen = false;
 
   @override
   void initState() {
@@ -38,6 +37,16 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _searchOpen = !_searchOpen;
+      if (!_searchOpen) {
+        _searchCtrl.clear();
+        _query = '';
+      }
+    });
   }
 
   /// Matches against everything a person might recall about a card — the bank,
@@ -64,123 +73,206 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('My Cards')),
-      body: BlocBuilder<CardOverviewBloc, CardOverviewState>(
-        builder: (context, state) {
-          if (state.isLoading) return const CardListSkeleton();
+      body: SafeArea(
+        child: BlocBuilder<CardOverviewBloc, CardOverviewState>(
+          builder: (context, state) {
+            if (state.isLoading) return const CardListSkeleton();
 
-          if (state.errorMessage != null) {
-            return _ErrorView(
-              message: state.errorMessage!,
-              onRetry: () => context.read<CardOverviewBloc>().add(
-                const LoadCardsRequested(),
-              ),
-            );
-          }
+            if (state.errorMessage != null) {
+              return _ErrorView(
+                message: state.errorMessage!,
+                onRetry: () => context.read<CardOverviewBloc>().add(
+                  const LoadCardsRequested(),
+                ),
+              );
+            }
 
-          // An empty vault is also what a reinstall looks like, so this is
-          // where the offer to restore a Drive backup belongs.
-          if (state.cards.isEmpty) {
-            return BlocBuilder<BackupCubit, BackupState>(
-              buildWhen: (p, c) => p.account != c.account,
-              builder: (context, backupState) => EmptyCardView(
-                connectedEmail: backupState.account?.email,
-                onRestore: () => openBackupScreen(context),
-              ),
-            );
-          }
+            // An empty vault is also what a reinstall looks like, so this is
+            // where the offer to restore a Drive backup belongs.
+            if (state.cards.isEmpty) {
+              return BlocBuilder<BackupCubit, BackupState>(
+                buildWhen: (p, c) => p.account != c.account,
+                builder: (context, backupState) => EmptyCardView(
+                  connectedEmail: backupState.account?.email,
+                  onRestore: () => openBackupScreen(context),
+                ),
+              );
+            }
 
-          final showSearch = state.cards.length >= _searchAppearsAt;
-          final visible = showSearch ? _filter(state.cards) : state.cards;
-          final isSearching = _query.trim().isNotEmpty;
+            final visible = _searchOpen ? _filter(state.cards) : state.cards;
+            final isSearching = _searchOpen && _query.trim().isNotEmpty;
 
-          // Leading items: the summary (hidden while searching, so results
-          // get the room) and the search field itself.
-          final headers = <Widget>[
-            if (!isSearching)
-              _VaultSummary(
-                cards: state.cards,
-                paidCardIds: state.paidCardIds,
-              ),
-            if (showSearch)
-              _SearchField(
-                controller: _searchCtrl,
-                onChanged: (v) => setState(() => _query = v),
-                onClear: () {
-                  _searchCtrl.clear();
-                  setState(() => _query = '');
-                },
-              ),
-          ];
+            // The hero and "ALL CARDS" label are hidden while actively
+            // searching, so filtered results get the room instead.
+            final headers = <Widget>[
+              if (!isSearching)
+                _NextBillHero(cards: state.cards, paidCardIds: state.paidCardIds),
+              if (!isSearching) _AllCardsLabel(count: state.cards.length),
+            ];
 
-          if (visible.isEmpty) {
             return ResponsiveContent(
               child: Column(
                 children: [
                   Padding(
                     padding: EdgeInsets.fromLTRB(
                       context.spacing(16),
-                      context.spacing(16),
+                      context.spacing(8),
                       context.spacing(16),
                       0,
                     ),
-                    child: Column(children: headers),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _Header(
+                          searchOpen: _searchOpen,
+                          onToggleSearch: _toggleSearch,
+                        ),
+                        if (_searchOpen) ...[
+                          SizedBox(height: context.spacing(12)),
+                          _SearchField(
+                            controller: _searchCtrl,
+                            onChanged: (v) => setState(() => _query = v),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
-                  Expanded(child: _NoMatches(query: _query.trim())),
+                  Expanded(
+                    child: visible.isEmpty
+                        ? _NoMatches(query: _query.trim())
+                        // Lazily built, and reorderable by long-press drag.
+                        // Dragging is only meaningful on the unfiltered
+                        // list — while searching, visible indices don't
+                        // match stored positions — so results render plain.
+                        : ReorderableListView.builder(
+                            buildDefaultDragHandles: !isSearching,
+                            padding: EdgeInsets.fromLTRB(
+                              context.spacing(16),
+                              context.spacing(16),
+                              context.spacing(16),
+                              context.spacing(96),
+                            ),
+                            header: Column(
+                              children: [
+                                for (final h in headers)
+                                  Padding(
+                                    padding: EdgeInsets.only(
+                                      bottom: context.spacing(16),
+                                    ),
+                                    child: h,
+                                  ),
+                              ],
+                            ),
+                            proxyDecorator: (child, index, animation) =>
+                                _DragProxy(animation: animation, child: child),
+                            onReorderStart: (_) =>
+                                HapticFeedback.mediumImpact(),
+                            // Unlike the older onReorder, this callback
+                            // already accounts for the dragged item leaving
+                            // its slot — no off-by-one fix needed.
+                            onReorderItem: (oldIndex, newIndex) {
+                              if (isSearching) return;
+                              context.read<CardOverviewBloc>().add(
+                                    ReorderCardsRequested(
+                                      oldIndex: oldIndex,
+                                      newIndex: newIndex,
+                                    ),
+                                  );
+                            },
+                            itemCount: visible.length,
+                            itemBuilder: (context, index) {
+                              final card = visible[index];
+                              return CardTile(
+                                // Reorder animations track items by key.
+                                key: ValueKey(card.id),
+                                card: card,
+                                isPaid: state.paidCardIds.contains(card.id),
+                              );
+                            },
+                          ),
+                  ),
                 ],
               ),
             );
-          }
+          },
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => openAddCardScreen(context),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+        elevation: 2,
+        child: const Icon(Icons.add_rounded, size: 28),
+      ),
+    );
+  }
+}
 
-          // Lazily built, and reorderable by long-press drag. Dragging is only
-          // meaningful on the unfiltered list — while searching, the visible
-          // indices don't match stored positions — so search results render as
-          // a plain list.
-          return ResponsiveContent(
-            child: ReorderableListView.builder(
-              buildDefaultDragHandles: !isSearching,
-              padding: EdgeInsets.fromLTRB(
-                context.spacing(16),
-                context.spacing(16),
-                context.spacing(16),
-                context.spacing(96),
-              ),
-              header: Column(
-                children: [
-                  for (final h in headers)
-                    Padding(
-                      padding: EdgeInsets.only(bottom: context.spacing(16)),
-                      child: h,
+// ─── Header ───────────────────────────────────────────────────────────────────
+
+class _Header extends StatelessWidget {
+  const _Header({required this.searchOpen, required this.onToggleSearch});
+  final bool searchOpen;
+  final VoidCallback onToggleSearch;
+
+  String get _greeting {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _greeting.toUpperCase(),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: scheme.secondary,
+                      letterSpacing: 1,
                     ),
-                ],
               ),
-              proxyDecorator: (child, index, animation) =>
-                  _DragProxy(animation: animation, child: child),
-              onReorderStart: (_) => HapticFeedback.mediumImpact(),
-              // Unlike the older onReorder, this callback already accounts for
-              // the dragged item leaving its slot — no off-by-one fix needed.
-              onReorderItem: (oldIndex, newIndex) {
-                if (isSearching) return;
-                context.read<CardOverviewBloc>().add(
-                      ReorderCardsRequested(
-                        oldIndex: oldIndex,
-                        newIndex: newIndex,
-                      ),
-                    );
-              },
-              itemCount: visible.length,
-              itemBuilder: (context, index) {
-                final card = visible[index];
-                return CardTile(
-                  // Reorder animations track items by key, not position.
-                  key: ValueKey(card.id),
-                  card: card,
-                  isPaid: state.paidCardIds.contains(card.id),
-                );
-              },
-            ),
-          );
-        },
+              const SizedBox(height: 2),
+              Text('My cards', style: Theme.of(context).textTheme.displaySmall),
+            ],
+          ),
+        ),
+        _CircleIconButton(
+          icon: searchOpen ? Icons.close : Icons.search,
+          onTap: onToggleSearch,
+        ),
+      ],
+    );
+  }
+}
+
+class _CircleIconButton extends StatelessWidget {
+  const _CircleIconButton({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    // A shade more tan than the page background, so the circle actually
+    // reads as a button rather than disappearing into the cream behind it.
+    return Material(
+      color: scheme.surfaceContainerHigh,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Icon(icon, size: 20, color: scheme.onSurface),
+        ),
       ),
     );
   }
@@ -214,33 +306,21 @@ class _DragProxy extends StatelessWidget {
 // ─── Search ───────────────────────────────────────────────────────────────────
 
 class _SearchField extends StatelessWidget {
-  const _SearchField({
-    required this.controller,
-    required this.onChanged,
-    required this.onClear,
-  });
-
+  const _SearchField({required this.controller, required this.onChanged});
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
-  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return TextField(
       controller: controller,
+      autofocus: true,
       onChanged: onChanged,
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
         hintText: 'Search bank, name, or last 4 digits',
         prefixIcon: Icon(Icons.search, size: 20, color: scheme.onSurfaceVariant),
-        suffixIcon: controller.text.isEmpty
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.close, size: 18),
-                onPressed: onClear,
-                tooltip: 'Clear',
-              ),
         isDense: true,
       ),
     );
@@ -278,167 +358,204 @@ class _NoMatches extends StatelessWidget {
   }
 }
 
-// ─── Summary header ───────────────────────────────────────────────────────────
+// ─── Next-bill hero ───────────────────────────────────────────────────────────
 
-/// The hero at the top of the vault. Answers the two questions actually worth
-/// answering on open — how many cards am I holding, and what is due next —
-/// instead of greeting the user with text they cannot act on.
-class _VaultSummary extends StatelessWidget {
-  const _VaultSummary({required this.cards, required this.paidCardIds});
+const _weekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const _monthNames = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/// The soonest unpaid bill, front and centre — the one thing on this screen
+/// worth acting on today.
+class _NextBillHero extends StatelessWidget {
+  const _NextBillHero({required this.cards, required this.paidCardIds});
 
   final List<PaymentCard> cards;
   final Set<String> paidCardIds;
 
-  /// The unpaid card whose due date lands soonest, or null if nothing is due.
-  ({PaymentCard card, int delta})? get _nextDue {
-    ({PaymentCard card, int delta})? soonest;
+  ({PaymentCard card, DateTime date, int delta})? get _nextDue {
+    ({PaymentCard card, DateTime date, int delta})? soonest;
     for (final c in cards) {
       if (paidCardIds.contains(c.id)) continue;
       final info = c.reminderInfo;
       if (info == null) continue;
       if (soonest == null || info.delta < soonest.delta) {
-        soonest = (card: c, delta: info.delta);
+        soonest = (card: c, date: info.date, delta: info.delta);
       }
     }
     return soonest;
   }
 
-  String _dueLabel(int delta) {
-    if (delta < 0) {
-      final days = -delta;
-      return days == 1 ? 'overdue by a day' : 'overdue by $days days';
-    }
+  String _dateLabel(DateTime d) =>
+      '${_weekdayNames[d.weekday - 1]}, ${d.day} ${_monthNames[d.month - 1]}';
+
+  String _pillLabel(int delta) {
+    if (delta < 0) return delta == -1 ? 'OVERDUE BY 1 DAY' : 'OVERDUE';
     return switch (delta) {
-      0 => 'due today',
-      1 => 'due tomorrow',
-      _ => 'due in $delta days',
+      0 => 'DUE TODAY',
+      1 => 'NEXT BILL TOMORROW',
+      _ => 'NEXT BILL IN $delta DAYS',
     };
   }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
     final next = _nextDue;
-    final isUrgent = next != null && next.delta <= 1;
 
     return Container(
-      padding: EdgeInsets.all(context.spacing(18)),
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF2563EB), Color(0xFF4F46E5)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(context.spacing(20)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF4F46E5).withValues(alpha: 0.32),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        color: scheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(20),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            cards.length == 1
-                ? '1 card secured'
-                : '${cards.length} cards secured',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              fontSize: context.font(21),
-              letterSpacing: -0.3,
-            ),
-          ),
-          SizedBox(height: context.spacing(14)),
-
-          // Next bill — the one thing worth acting on today.
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(
-              horizontal: context.spacing(12),
-              vertical: context.spacing(10),
-            ),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: isUrgent ? 0.22 : 0.13),
-              borderRadius: BorderRadius.circular(context.spacing(12)),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: isUrgent ? 0.5 : 0.2),
-              ),
-            ),
-            child: Row(
+      child: next == null
+          ? Row(
               children: [
-                Icon(
-                  next == null
-                      ? Icons.check_circle_outline
-                      : (isUrgent
-                            ? Icons.notifications_active_outlined
-                            : Icons.event_outlined),
-                  color: Colors.white,
-                  size: context.spacing(19),
-                ),
-                SizedBox(width: context.spacing(10)),
+                Icon(Icons.check_circle_outline,
+                    color: scheme.onSecondaryContainer, size: 22),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: next == null
-                      ? Text(
-                          'No bills due — you are all caught up.',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: context.font(13.5),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              next.card.displayTitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: context.font(14),
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            Text(
-                              _dueLabel(next.delta),
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.85),
-                                fontSize: context.font(12.5),
-                              ),
-                            ),
-                          ],
+                  child: Text(
+                    'All caught up — no bills due right now.',
+                    style: text.titleSmall
+                        ?.copyWith(color: scheme.onSecondaryContainer),
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _pillLabel(next.delta),
+                  style: text.labelSmall?.copyWith(
+                    color: scheme.onSecondaryContainer.withValues(alpha: 0.7),
+                    letterSpacing: 1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _dateLabel(next.date),
+                  style: text.headlineSmall
+                      ?.copyWith(color: scheme.onSecondaryContainer),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _MiniChip(card: next.card),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '${next.card.displayTitle} · due on the '
+                        '${next.card.dueDayLabel}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: text.bodySmall?.copyWith(
+                          color: scheme.onSecondaryContainer,
+                          fontWeight: FontWeight.w600,
                         ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ),
+    );
+  }
+}
 
-          SizedBox(height: context.spacing(12)),
-          Row(
-            children: [
-              Icon(
-                Icons.lock_outline,
-                size: context.spacing(13),
-                color: Colors.white.withValues(alpha: 0.7),
-              ),
-              SizedBox(width: context.spacing(6)),
-              Expanded(
-                child: Text(
-                  'Encrypted on this device',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: context.font(11.5),
-                  ),
-                ),
-              ),
-            ],
+/// Small colour swatch identifying the soonest-due card — same colour and
+/// bank label as the full gradient card below, so the hero and the card it
+/// points at are visibly the same card, not just a generic icon.
+class _MiniChip extends StatelessWidget {
+  const _MiniChip({required this.card});
+  final PaymentCard card;
+
+  String _shortLabel() {
+    final bank = card.bankName?.trim();
+    if (bank == null || bank.isEmpty) return card.typeLabel;
+    return bank.length <= 6 ? bank.toUpperCase() : bank.substring(0, 6).toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final digits = card.cardNumber.replaceAll(RegExp(r'\D'), '');
+    final last4 = digits.length >= 4 ? digits.substring(digits.length - 4) : '';
+
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: CardPalette.forCard(card).first,
+        borderRadius: BorderRadius.circular(9),
+      ),
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _shortLabel(),
+            maxLines: 1,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 8,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
+            ),
           ),
+          if (last4.isNotEmpty)
+            Text(
+              last4,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.85),
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
         ],
       ),
+    );
+  }
+}
+
+class _AllCardsLabel extends StatelessWidget {
+  const _AllCardsLabel({required this.count});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Text(
+          'ALL CARDS',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+                letterSpacing: 1,
+              ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+          decoration: BoxDecoration(
+            color: scheme.primaryContainer,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            '$count',
+            style: TextStyle(
+              color: scheme.onPrimaryContainer,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
