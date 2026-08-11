@@ -9,6 +9,7 @@ import 'core/backup/backup_cubit.dart';
 import 'core/di/service_locator.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_cubit.dart';
+import 'core/theme/warm_theme.dart';
 import 'features/cards/presentation/bloc/bottom_navigation/bottom_navigation_bloc.dart';
 import 'features/cards/presentation/bloc/card_overview/card_overview_bloc.dart';
 import 'features/cards/presentation/bloc/card_overview/card_overview_event.dart';
@@ -30,20 +31,21 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(create: (_) => ThemeCubit()),
+        BlocProvider(create: (_) => sl<ThemeCubit>()),
         // AuthCubit lives at the root — survives navigator pushes
         BlocProvider(create: (_) => sl<AuthCubit>()),
         // BackupCubit lives at the root so auto-backup can fire after unlock
         BlocProvider(create: (_) => sl<BackupCubit>()),
       ],
-      child: BlocBuilder<ThemeCubit, ThemeMode>(
-        builder: (context, themeMode) {
+      child: BlocBuilder<ThemeCubit, ThemeState>(
+        builder: (context, themeState) {
+          final isWarm = themeState.variant == AppThemeVariant.warm;
           return MaterialApp(
             title: 'Card Vault',
             debugShowCheckedModeBanner: false,
-            themeMode: themeMode,
-            theme: AppTheme.light,
-            darkTheme: AppTheme.dark,
+            themeMode: themeState.mode,
+            theme: isWarm ? WarmTheme.light : AppTheme.light,
+            darkTheme: isWarm ? WarmTheme.dark : AppTheme.dark,
             builder: (context, child) {
               final media = MediaQuery.of(context);
               return MediaQuery(

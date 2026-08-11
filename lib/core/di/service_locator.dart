@@ -9,6 +9,7 @@ import '../backup/google_drive_service.dart';
 import '../encryption/encryption_service.dart';
 import '../notifications/notification_service.dart';
 import '../storage/secure_card_storage.dart';
+import '../theme/theme_cubit.dart';
 import '../../features/cards/presentation/bloc/add_card/add_card_cubit.dart';
 import '../../features/cards/data/datasources/local_card_data_source.dart';
 import '../../features/cards/data/repositories/card_repository_impl.dart';
@@ -59,6 +60,7 @@ Future<void> setupDependencies() async {
 
     // ── Auth — singleton so lock state survives widget rebuilds ───────────────
     ..registerLazySingleton<AuthCubit>(() => AuthCubit(sl()))
+    ..registerLazySingleton<ThemeCubit>(() => ThemeCubit(prefs))
 
     // ── Backup — singleton so state survives navigation ───────────────────────
     ..registerLazySingleton<BackupCubit>(

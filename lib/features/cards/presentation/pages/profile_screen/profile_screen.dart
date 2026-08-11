@@ -236,7 +236,7 @@ class _ThemeModeTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = context.watch<ThemeCubit>().state == ThemeMode.dark;
+    final isDark = context.watch<ThemeCubit>().state.mode == ThemeMode.dark;
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: EdgeInsets.symmetric(
