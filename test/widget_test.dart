@@ -26,22 +26,23 @@ void main() {
     expect(find.byType(FilledButton), findsOneWidget);
   });
 
-  testWidgets('empty state hides the restore prompt when there is no handler',
+  testWidgets('empty state hides the restore button when there is no handler',
       (tester) async {
     await tester.pumpWidget(_app(const EmptyCardView()));
 
-    expect(find.text('Used Card Vault before?'), findsNothing);
+    expect(find.text('Restore from Drive'), findsNothing);
+    expect(find.text('Restore my cards'), findsNothing);
   });
 
-  testWidgets('empty state invites a returning user to connect Google',
+  testWidgets('empty state offers to restore from Drive when no account is connected',
       (tester) async {
     var tapped = false;
     await tester.pumpWidget(_app(EmptyCardView(onRestore: () => tapped = true)));
 
-    expect(find.text('Used Card Vault before?'), findsOneWidget);
-    expect(find.text('Connect Google account'), findsOneWidget);
+    expect(find.text('Restore from Drive'), findsOneWidget);
+    expect(find.text('Restore my cards'), findsNothing);
 
-    await tester.tap(find.text('Connect Google account'));
+    await tester.tap(find.text('Restore from Drive'));
     expect(tapped, isTrue);
   });
 
@@ -52,10 +53,9 @@ void main() {
       connectedEmail: 'geopaul94@gmail.com',
     )));
 
-    // Nothing left to "connect" — the ask becomes the restore itself.
+    // Nothing left to connect — the ask becomes the restore itself.
     expect(find.text('Restore my cards'), findsOneWidget);
-    expect(find.text('Connect Google account'), findsNothing);
-    expect(find.textContaining('geopaul94@gmail.com'), findsOneWidget);
+    expect(find.text('Restore from Drive'), findsNothing);
   });
 
   testWidgets('card face shows title, masked number, and holder',

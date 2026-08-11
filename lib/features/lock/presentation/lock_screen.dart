@@ -22,133 +22,160 @@ class _LockScreenState extends State<LockScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF1D4ED8), Color(0xFF4F46E5)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.credit_card,
-                      size: 42,
-                      color: Colors.white,
+      backgroundColor: scheme.surfaceContainerLowest,
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // ── Mark ────────────────────────────────────────────────
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: scheme.inverseSurface,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    'CV',
+                    style: text.titleLarge?.copyWith(
+                      color: scheme.onInverseSurface,
+                      fontFamily: 'PlayfairDisplay',
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Card Vault',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Unlock to access your saved cards',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.75),
-                      fontSize: 15,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 48),
+                ),
+                const SizedBox(height: 20),
+                Text('Card Vault', style: text.headlineSmall),
+                const SizedBox(height: 6),
+                Text(
+                  'Locked. Unlock to view your cards.',
+                  style: text.bodySmall,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 48),
 
-                  // ── Auth UI ─────────────────────────────────────────────
-                  BlocBuilder<AuthCubit, AuthState>(
-                    builder: (context, state) {
-                      if (state.isAuthenticating) {
-                        return const CircularProgressIndicator(
-                            color: Colors.white);
-                      }
+                // ── Auth UI ─────────────────────────────────────────────
+                BlocBuilder<AuthCubit, AuthState>(
+                  builder: (context, state) {
+                    final canTap = !state.isAuthenticating && state.canRetry;
 
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (state.canRetry)
-                            FilledButton.icon(
-                              onPressed: () =>
-                                  context.read<AuthCubit>().authenticate(),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: const Color(0xFF1D4ED8),
-                                minimumSize:
-                                    const Size(double.infinity, 52),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                              ),
-                              icon: const Icon(Icons.fingerprint, size: 24),
-                              label: Text(
-                                state.phase == AuthPhase.idle
-                                    ? 'Unlock with Biometrics'
-                                    : 'Try Again',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          if (state.errorText != null) ...[
-                            const SizedBox(height: 20),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color:
-                                      Colors.white.withValues(alpha: 0.25),
-                                ),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Icon(Icons.info_outline,
-                                      color: Colors.white70, size: 18),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      state.errorText!,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 13,
-                                        height: 1.5,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _UnlockButton(
+                          busy: state.isAuthenticating,
+                          onTap: canTap
+                              ? () =>
+                                  context.read<AuthCubit>().authenticate()
+                              : null,
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          state.isAuthenticating
+                              ? 'Unlocking…'
+                              : (state.phase == AuthPhase.failed
+                                  ? 'Tap to try again'
+                                  : 'Tap to unlock'),
+                          style: text.bodySmall,
+                        ),
+                        if (state.errorText != null) ...[
+                          const SizedBox(height: 20),
+                          _ErrorNote(message: state.errorText!),
                         ],
-                      );
-                    },
-                  ),
-                ],
-              ),
+                      ],
+                    );
+                  },
+                ),
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─── Unlock button ────────────────────────────────────────────────────────────
+
+/// The tappable fingerprint circle. Deliberately doesn't say "Face ID" —
+/// that's an Apple/iOS term, and this is an Android app where the same
+/// biometric prompt could just as easily be a fingerprint sensor.
+class _UnlockButton extends StatelessWidget {
+  const _UnlockButton({required this.busy, required this.onTap});
+  final bool busy;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surface,
+      shape: const CircleBorder(),
+      elevation: 1,
+      shadowColor: scheme.shadow.withValues(alpha: 0.15),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 88,
+          height: 88,
+          child: Center(
+            child: busy
+                ? SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: scheme.primary,
+                    ),
+                  )
+                : Icon(Icons.fingerprint, size: 40, color: scheme.primary),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Error note ───────────────────────────────────────────────────────────────
+
+class _ErrorNote extends StatelessWidget {
+  const _ErrorNote({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, color: scheme.onErrorContainer, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: scheme.onErrorContainer,
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
