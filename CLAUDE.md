@@ -92,15 +92,48 @@ Data flows: screen → `CardOverviewBloc` event → use case → repository →
     Lock screen deliberately says "Tap to unlock", not "Face ID" — that's an
     iOS term and this is Android.
 
-## Next sprint (proposed)
+## Next sprint (proposed) — START HERE
 
-1. **The You/Settings screen was never redesigned or extended.** Early in the
-   round-2 work Geo asked for four real features there — a theme picker, a text-size
-   setting, an app-lock delay setting, a "Data safety" info screen — and said
-   "build all as real features." Only the *backing* infrastructure for one of
-   them shipped (`ThemeCubit` already supports variant + mode); there is no
-   picker UI, and the other three don't exist at all. `profile_screen.dart` is
-   still on the plain indigo-adjacent styling from before this round.
+**In progress: You/Settings screen redesign.** Geo asked for it explicitly
+("build all as real features"); investigation is done, implementation hasn't
+started (no files edited yet — safe clean starting point). Concrete plan from
+reading `profile_screen.dart`, `AuthCubit`, and `main.dart`:
+
+1. **Theme picker** — `ThemeCubit` already has full backing state
+   (`AppThemeVariant.warm/classic` + `ThemeMode.light/dark/system`, persisted).
+   Just needs a UI: a modal bottom sheet or dialog with two radio groups
+   (variant, mode), replacing `_ThemeModeTile`'s single dark-mode switch.
+2. **Text size setting** — currently `main.dart`'s `MaterialApp.builder` clamps
+   the *system* textScaler to [0.9, 1.3] unconditionally; there's no manual
+   override. Add a small settings cubit/prefs value (System/Small/Default/
+   Large, e.g. null/0.9/1.0/1.15) that — when set to something other than
+   "System" — replaces rather than clamps the system value in that same
+   `MediaQuery` override.
+3. **App-lock delay** — the real design decision. `AuthCubit.lock()` currently
+   re-locks *immediately* on `paused`/`hidden`/`detached`
+   (`_AppGateState.didChangeAppLifecycleState` in `main.dart`). A delay setting
+   (Immediate/30s/1min/5min) means: on backgrounding, start a `Timer` for the
+   chosen delay instead of calling `lock()` synchronously; cancel it if the app
+   resumes first; let it fire `lock()` if not. **Do not conflate this with**
+   `beginTrustedInterruption()`/`_trustedGrace` (60s) — that mechanism forgives
+   the *camera's own* background hop during scanning; this is a user-chosen
+   general delay for any backgrounding. Two separate, deliberately different
+   timers.
+4. **Data safety screen** — new static screen. Content should mirror
+   `docs/privacy-policy.html` (already accurate re: optional CVV, on-device
+   AES-256, optional Drive backup) condensed for in-app reading, not a second
+   copy that can drift out of sync — consider generating both from one source,
+   or at minimum cross-reference and update together going forward.
+5. **Header/avatar** — mockup shows "GA" avatar + name + "N cards · locked
+   with Face ID". No user-account system exists to source a name from except
+   the connected Drive account (`BackupCubit.state.account?.displayName`) —
+   handle the not-signed-in case (generic avatar, no name line). Card count
+   comes from `CardOverviewBloc`. **Do not say "Face ID"** — same reasoning as
+   the lock screen (iOS term; Android's prompt is as often fingerprint). Use
+   neutral wording ("app-locked", "protected").
+
+Original ask, for reference: theme picker + text size + lock delay + data
+safety, all as **real, working features**, not just UI.
 2. **The app's actual launcher icon is still the old indigo design**
    (`assets/icon/ic_full.png` / `ic_fg.png` / `ic_bg.png`), never regenerated to
    match Warm. Surfaced while placing the icon inside the empty-vault circle —
