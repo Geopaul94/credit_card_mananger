@@ -32,11 +32,14 @@ class EmptyCardView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Soft two-tone glow — no literal meaning, just a calm focal
-            // point above the headline instead of an empty page.
+            // The app's own mark, on a Warm-toned circle. ic_fg.png is the
+            // launcher icon's foreground layer (transparent background) — the
+            // full composite (ic_full.png) still carries the old indigo theme
+            // baked into its background and would clash outright here.
             Container(
               width: context.spacing(120, tabletValue: 140),
               height: context.spacing(120, tabletValue: 140),
+              padding: EdgeInsets.all(context.spacing(22)),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
@@ -54,6 +57,7 @@ class EmptyCardView extends StatelessWidget {
                   ),
                 ],
               ),
+              child: Image.asset('assets/icon/ic_fg.png', fit: BoxFit.contain),
             ),
             SizedBox(height: context.spacing(28)),
             Text(
