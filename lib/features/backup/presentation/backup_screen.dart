@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/backup/backup_cubit.dart';
 import '../../../core/ui/responsive_layout.dart';
+import '../../cards/presentation/bloc/bottom_navigation/bottom_navigation_bloc.dart';
+import '../../cards/presentation/bloc/bottom_navigation/bottom_navigation_event.dart';
 import '../../cards/presentation/bloc/card_overview/card_overview_bloc.dart';
 import '../../cards/presentation/bloc/card_overview/card_overview_event.dart';
 import '../../cards/presentation/bloc/card_overview/card_overview_state.dart';
@@ -38,6 +40,20 @@ class _BackupScreenState extends State<BackupScreen> {
   void initState() {
     super.initState();
     context.read<BackupCubit>().initialize();
+  }
+
+  /// Sends the user to the card list after a restore. This screen is reached
+  /// two ways — pushed from Home/You, or as the Backup tab in the shell — so
+  /// it pops when there's a route to pop and switches tabs when there isn't.
+  /// `BottomNavigationBloc` is only an ancestor in the tab case, which is
+  /// exactly the branch that reads it.
+  void _leaveForCards(BuildContext context) {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+    } else {
+      context.read<BottomNavigationBloc>().add(const ChangeTabEvent(0));
+    }
   }
 
   @override
@@ -76,9 +92,18 @@ class _BackupScreenState extends State<BackupScreen> {
                 duration: const Duration(seconds: 3),
               ));
             final cubit = context.read<BackupCubit>();
-            Future.delayed(const Duration(seconds: 1), () {
-              if (mounted) cubit.dismiss();
-            });
+            if (state.restoredCount != null) {
+              // A restore's whole point is the cards it brought back, so land
+              // the user on them instead of on a backup screen with nothing
+              // left to do. The snackbar above lives on the root
+              // ScaffoldMessenger, so it stays up across the transition.
+              cubit.dismiss();
+              _leaveForCards(context);
+            } else {
+              Future.delayed(const Duration(seconds: 1), () {
+                if (mounted) cubit.dismiss();
+              });
+            }
           } else if (state.phase == BackupPhase.error &&
               state.errorMessage != null) {
             ScaffoldMessenger.of(context)

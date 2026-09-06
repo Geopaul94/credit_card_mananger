@@ -7,7 +7,7 @@ encrypted, biometric-locked. Live on the Play Store.
 |---|---|
 | applicationId | `com.geo.credit_cards` — **never change this** |
 | App name | Card Vault |
-| Current version | 1.0.3+4 (unreleased; 1.0.1+2 is live) |
+| Current version | 1.0.3+5 (unreleased; 1.0.1+2 is live) |
 | Keystore backup | `D:\PlayStoreBackups\cardvault_drive_playstore_backup` |
 | Privacy policy | `docs/privacy-policy.html` |
 
@@ -167,7 +167,7 @@ The three SHA-1s for `com.geo.credit_cards`:
 |---|---|---|
 | `B6:1E:BB:21:93:C8:1E:7A:90:72:36:6A:15:3F:71:91:33:4C:14:EF` | debug (`~/.android/debug.keystore`) | ✅ was already there |
 | `C9:37:BF:12:B0:C8:8A:F2:B8:C7:01:09:7C:D0:B7:73:D9:E0:4F:B8` | upload (`C:/Users/geopa/cardvault-upload.jks`, alias `upload`) | ✅ added this session |
-| *(from Play Console)* | **Play app signing** | ❌ **STILL MISSING — do this first** |
+| *(from Play Console)* | **Play app signing** | ❌ **still missing — needed for Play-installed builds** |
 
 **The remaining step is server-side only and needs no rebuild or upload.** Add
 the Play app-signing SHA-1 in Firebase and the *already-live 1.0.1 build* starts
@@ -216,14 +216,42 @@ bottom of the You tab, ported from Debt Tracker:
   Vault Play listing with its star widget, the feedback row opens a Gmail
   draft with the right recipient/subject/footer.
 
+**Drive backup verified working on device (2026-09-06).** Tested the *release*
+build actually installed on the Redmi (signature checked first: signed by the
+**upload key** `C9:37:BF:12…`, so it exercises the SHA-1 added this session).
+Opening the Backup tab silently signed in and restored — the vault went from
+"Your vault is empty" to 3 cards — and Card Vault's own pid logged **no**
+`ApiException` / `DEVELOPER_ERROR`. (A `DEVELOPER_ERROR` *does* appear in
+logcat around the same moment, but it belongs to `com.google.android.gm`
+hitting the Phenotype flag API — unrelated noise. Check the pid before
+reading anything into it.)
+
+**This proves the upload-key path only.** Play re-signs the bundle with the
+**Play app-signing key**, whose SHA-1 is still not registered (table above),
+so a Play-installed build is still expected to fail until that fingerprint is
+added in Firebase. Add it before or right after upload.
+
+**Restore now leaves the backup screen (2026-09-06).** On a successful
+*restore* (not a backup), `BackupScreen`'s success listener dismisses the cubit
+and calls `_leaveForCards()`, which pops when `Navigator.canPop()` and
+otherwise fires `ChangeTabEvent(0)`. The two branches exist because this screen
+is reached both ways — pushed from Home/You via `openBackupScreen`, and as
+Backup tab 2 in `BottomNavigationBarWidget`'s `IndexedStack`.
+`BottomNavigationBloc` is provided in `_MainShell`, so it is **not** an
+ancestor of the pushed route — which is exactly the branch that pops instead
+of reading it. The success snackbar sits on the root `ScaffoldMessenger`, so it
+survives the transition. Backup-success behaviour is unchanged (1s delayed
+dismiss, stays put). **Not covered by a test** — there is no `BackupCubit`
+fixture in `test/` yet.
+
 **Rebuilt AAB (2026-09-06).** `build/app/outputs/bundle/release/app-release.aab`,
 backed up as
-`D:\PlayStoreBackups\cardvault_drive_playstore_backup\CardVault-v1.0.3-build4-2026-09-06.aab`.
+`D:\PlayStoreBackups\cardvault_drive_playstore_backup\CardVault-v1.0.3-build5-2026-09-06.aab`.
 Manually verified as usual (the strip-symbols exit is still cosmetic): upload-key
-SHA-1 `C9:37:BF:12…`, versionCode 4, versionName 1.0.3, ABIs arm64-v8a /
+SHA-1 `C9:37:BF:12…`, versionCode 5, versionName 1.0.3, ABIs arm64-v8a /
 armeabi-v7a / x86_64, and the new `SENDTO`/`mailto` queries present in the
-shipped manifest. The two earlier 1.0.3+4 bundles in that folder are history —
-don't upload those.
+shipped manifest. The three earlier bundles in that folder (all 1.0.3+4) are history —
+don't upload those; **build5 is the one to upload**.
 
 **Next in this thread:**
 1. Unlock the phone and walk through the **You** tab yourself — Appearance
