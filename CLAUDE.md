@@ -23,10 +23,13 @@ lib/
     di/           service_locator.dart
     encryption/   AES for local storage + backup payloads
     notifications/ NotificationService — scheduling + Paid/Snooze/Skip actions
+    feedback/     FeedbackService — Play listing + mailto feedback draft
+    settings/     SettingsCubit (text-size override + app-lock delay, persisted)
     storage/      SecureCardStorage (encrypted local persistence)
     theme/        AppTheme (indigo), WarmTheme (cream/terracotta, default),
                   ThemeCubit (variant + mode), CardPalette (per-card colour)
-    ui/           responsive_layout.dart (context.spacing/font helpers)
+    ui/           responsive_layout.dart (context.spacing/font helpers),
+                  settings_picker_sheet.dart (shared radio-list bottom sheet)
     utils/        card_input.dart (validators, formatters)
   features/
     cards/
@@ -34,7 +37,10 @@ lib/
       data/         models, local data source, repository impl, OCR scan service
       presentation/
         bloc/       card_overview, add_card, bottom_navigation
-        pages/      home, add_card, edit_card, card_detail, reminder, profile
+        pages/      home, add_card, edit_card, card_detail, reminder,
+                    profile_screen (+ components/: profile_header, backup_tile,
+                    settings_row_tile, theme_picker_tile, text_size_tile,
+                    lock_delay_tile, support_tiles), data_safety_screen
         widgets/    card_tile (CardFrontFace/CardBackFace), card_chip, card_brand,
                     card_form_field, section_card, empty_card_view, card_skeleton,
                     bottom_navigation_bar, swipe_to_confirm, due_date_calendar
@@ -92,62 +98,160 @@ Data flows: screen → `CardOverviewBloc` event → use case → repository →
     Lock screen deliberately says "Tap to unlock", not "Face ID" — that's an
     iOS term and this is Android.
 
-## Next sprint (proposed) — START HERE
+## Next sprint — START HERE
 
-**In progress: You/Settings screen redesign.** Geo asked for it explicitly
-("build all as real features"); investigation is done, implementation hasn't
-started (no files edited yet — safe clean starting point). Concrete plan from
-reading `profile_screen.dart`, `AuthCubit`, and `main.dart`:
+**In progress: You/Settings screen redesign.** All 5 planned pieces are
+**implemented** (this branch, `sprint-cvv-restore`, nothing committed yet —
+see below). `flutter analyze` is clean, all 80 existing tests still pass,
+`flutter build apk --debug` succeeds, and the app installs and launches to
+the lock screen without crashing. **What's not done: a human on-device pass.**
 
-1. **Theme picker** — `ThemeCubit` already has full backing state
-   (`AppThemeVariant.warm/classic` + `ThemeMode.light/dark/system`, persisted).
-   Just needs a UI: a modal bottom sheet or dialog with two radio groups
-   (variant, mode), replacing `_ThemeModeTile`'s single dark-mode switch.
-2. **Text size setting** — currently `main.dart`'s `MaterialApp.builder` clamps
-   the *system* textScaler to [0.9, 1.3] unconditionally; there's no manual
-   override. Add a small settings cubit/prefs value (System/Small/Default/
-   Large, e.g. null/0.9/1.0/1.15) that — when set to something other than
-   "System" — replaces rather than clamps the system value in that same
-   `MediaQuery` override.
-3. **App-lock delay** — the real design decision. `AuthCubit.lock()` currently
-   re-locks *immediately* on `paused`/`hidden`/`detached`
-   (`_AppGateState.didChangeAppLifecycleState` in `main.dart`). A delay setting
-   (Immediate/30s/1min/5min) means: on backgrounding, start a `Timer` for the
-   chosen delay instead of calling `lock()` synchronously; cancel it if the app
-   resumes first; let it fire `lock()` if not. **Do not conflate this with**
-   `beginTrustedInterruption()`/`_trustedGrace` (60s) — that mechanism forgives
-   the *camera's own* background hop during scanning; this is a user-chosen
-   general delay for any backgrounding. Two separate, deliberately different
-   timers.
-4. **Data safety screen** — new static screen. Content should mirror
-   `docs/privacy-policy.html` (already accurate re: optional CVV, on-device
-   AES-256, optional Drive backup) condensed for in-app reading, not a second
-   copy that can drift out of sync — consider generating both from one source,
-   or at minimum cross-reference and update together going forward.
-5. **Header/avatar** — mockup shows "GA" avatar + name + "N cards · locked
-   with Face ID". No user-account system exists to source a name from except
-   the connected Drive account (`BackupCubit.state.account?.displayName`) —
-   handle the not-signed-in case (generic avatar, no name line). Card count
-   comes from `CardOverviewBloc`. **Do not say "Face ID"** — same reasoning as
-   the lock screen (iOS term; Android's prompt is as often fingerprint). Use
-   neutral wording ("app-locked", "protected").
+Note (2026-09-06): `adb shell input tap/swipe` **does** work when the phone is
+plugged in over **USB** — it was only blocked over the wireless-debug
+connection. So Claude can now drive the UI and screenshot it; the Settings
+screen and the new SUPPORT rows were verified that way in a release build.
+What still can't be checked this way is anything behind a *secure* window:
+`screencap` returns solid black for the system biometric prompt, so app-lock
+and unlock flows can't be read from screenshots.
 
-Original ask, for reference: theme picker + text size + lock delay + data
-safety, all as **real, working features**, not just UI.
-2. **The app's actual launcher icon is still the old indigo design**
+1. ✅ **Theme picker** (`components/theme_picker_tile.dart`) — tapping the
+   Appearance row opens a bottom sheet with two `RadioGroup`s (variant:
+   Warm/Classic, brightness: Light/Dark/Follow system), wired to the
+   existing `ThemeCubit.setVariant`/`setMode`.
+2. ✅ **Text size setting** (`core/settings/settings_cubit.dart`,
+   `components/text_size_tile.dart`) — new `SettingsCubit` (same
+   load/persist shape as `ThemeCubit`) holds a `TextSizeOption`
+   (system/small/standard/large). In `main.dart`, a non-system choice now
+   replaces the platform `textScaler` outright instead of the old
+   unconditional [0.9, 1.3] clamp; `system` still uses that clamp.
+3. ✅ **App-lock delay** (`SettingsCubit.lockDelay`,
+   `components/lock_delay_tile.dart`) — `_AppGateState` in `main.dart` now
+   starts a `Timer` for the chosen delay on backgrounding instead of calling
+   `AuthCubit.lock()` synchronously, and cancels it on resume. Kept fully
+   separate from `beginTrustedInterruption()`/`_trustedGrace` (60s), which
+   only forgives the camera's own background hop during scanning.
+4. ✅ **Data safety screen** (`pages/data_safety_screen/data_safety_screen.dart`)
+   — condensed, in-app version of `docs/privacy-policy.html`'s facts (optional
+   CVV, on-device AES-256, on-device OCR, optional Drive backup). Reached via
+   a new "Data & Privacy" row under a PRIVACY section. **Keep this and the
+   HTML policy in sync by hand** — there's no shared source yet.
+5. ✅ **Header/avatar** (`components/profile_header.dart`) — avatar shows
+   initials from `BackupCubit.state.account?.displayName` when signed in
+   (generic person icon otherwise), name line falls back to "Card Vault",
+   subtitle is "`N cards · app-locked`" (count from `CardOverviewBloc`,
+   never "Face ID" — see the lock-screen gotcha). Background is now a
+   gradient of `colorScheme.primary` instead of a hardcoded blue, so it
+   reads correctly in both Warm and Classic, light and dark.
+
+As part of this, `profile_screen.dart` (was 308 lines, over the 300-line
+screen limit, everything inline) was split into `profile_screen/components/`:
+`profile_header.dart`, `backup_tile.dart`, `security_tile.dart` (+
+`AlwaysOnBadge`), `theme_picker_tile.dart`, `text_size_tile.dart`,
+`lock_delay_tile.dart`. The screen file itself is now ~77 lines. A shared
+`core/ui/settings_picker_sheet.dart` (`showSettingsPicker<T>`) backs the
+text-size and lock-delay pickers; the theme picker has its own sheet since it
+needs two independent radio groups at once.
+
+**Drive backup sign-in — root cause found (2026-09-06), fix half-applied.**
+Backup/restore failed with a Google "sign in" error in *release* builds only.
+Nothing is wrong with `GoogleDriveService` / `BackupCubit` — the logic is sound.
+The cause was OAuth registration: `google-services.json` (project
+`debt-tracker-466507`) had exactly **one** Android OAuth client for
+`com.geo.credit_cards`, and its `certificate_hash` was the **debug keystore**.
+The upload key and the Play app-signing key were never registered, so Play
+Services returned `ApiException: 10 (DEVELOPER_ERROR)` for any non-debug build.
+
+The three SHA-1s for `com.geo.credit_cards`:
+
+| SHA-1 | Key | Registered? |
+|---|---|---|
+| `B6:1E:BB:21:93:C8:1E:7A:90:72:36:6A:15:3F:71:91:33:4C:14:EF` | debug (`~/.android/debug.keystore`) | ✅ was already there |
+| `C9:37:BF:12:B0:C8:8A:F2:B8:C7:01:09:7C:D0:B7:73:D9:E0:4F:B8` | upload (`C:/Users/geopa/cardvault-upload.jks`, alias `upload`) | ✅ added this session |
+| *(from Play Console)* | **Play app signing** | ❌ **STILL MISSING — do this first** |
+
+**The remaining step is server-side only and needs no rebuild or upload.** Add
+the Play app-signing SHA-1 in Firebase and the *already-live 1.0.1 build* starts
+working for users. Path (Google moved it — the old *Test and release → Setup →
+App integrity* page now just redirects): Play Console → Card Vault →
+**Protected with Play** → **Automatic protection** row (*1 of 1 service active*)
+→ **Manage** → Play app signing → copy the SHA-1 under **App signing key
+certificate** (not *Upload key certificate*) → Firebase → Project settings →
+app `credit_cards` → **Add fingerprint**.
+
+Considered and rejected: moving Card Vault to its own Cloud project. The worry
+was the consent screen showing "debt tracker" to a credit-card app's users —
+but a device test proved the Android account picker renders the **app's own
+label** ("Card Vault"), not the project name. The project name only appears in
+myaccount.google.com → Third-party apps. Not worth a migration; staying in
+`debt-tracker-466507`.
+
+**Rate & feedback in Settings (2026-09-06).** A **SUPPORT** section at the
+bottom of the You tab, ported from Debt Tracker:
+
+- `core/feedback/feedback_service.dart` — registered in `service_locator.dart`
+  (Card Vault resolves services from `get_it`; Debt Tracker's static
+  `instance` shape was not copied). `rateApp()` uses
+  `InAppReview.openStoreListing()` with an https fallback; `sendFeedback()`
+  opens a `mailto:` draft to `geopaul94@gmail.com` (same address as
+  `docs/privacy-policy.html`) with subject "Card Vault feedback" and an
+  app-version/Android-version footer.
+- `profile_screen/components/support_tiles.dart` — `RateAppTile` (card with a
+  decorative 5-star row) and `SendFeedbackTile`, plus `runSupportAction()`,
+  which snackbars when the handoff fails.
+- New deps: `url_launcher`, `in_app_review`, `package_info_plus`. New
+  `<queries>` entries in `AndroidManifest.xml` for `mailto:` and `https:` —
+  **without them both taps fail silently on Android 11+.**
+- `security_tile.dart` → `settings_row_tile.dart` (`SecurityTile` →
+  `SettingsRowTile`): it was already the generic settings row (the Privacy
+  row used it), and the SUPPORT row made the old name plainly wrong. Only
+  `profile_screen.dart` referenced it, all uncommitted.
+- **Fixed while doing this:** the row painted its background on a
+  `DecoratedBox` above the `ListTile`, so every tappable settings row had an
+  invisible ripple (Flutter asserts on it in debug; a widget test caught it).
+  Colour now lives on a `Material`, border on the box inside. Same shape in
+  `RateAppTile`. See the new gotcha below.
+- `test/support_tiles_test.dart` — 4 tests. Suite is 84, `flutter analyze`
+  clean.
+- Verified on device in a **release** build: the rate row lands on the Card
+  Vault Play listing with its star widget, the feedback row opens a Gmail
+  draft with the right recipient/subject/footer.
+
+**The backed-up AAB is now stale.** `CardVault-v1.0.3-build4-2026-09-03.aab`
+predates this section, so it must be rebuilt before upload (still 1.0.3+4 —
+bump only if 4 has been uploaded by then).
+
+**Next in this thread:**
+1. Unlock the phone and walk through the **You** tab yourself — Appearance
+   (theme picker + text size), Security (lock delay row), Privacy (Data &
+   Privacy screen), SUPPORT, and the new header — in both Warm/Classic and
+   light/dark if you can. Report anything that looks wrong.
+   - While there, sanity-check the **app lock on return from another app**.
+     Driving it over ADB was inconclusive: the system biometric prompt is a
+     secure window, so `screencap` returns solid black and the pass can't be
+     read from screenshots. `FingerprintService` logs showed a prompt being
+     started and cancelled, and the app then resumed into the vault — that is
+     consistent with the lock working *and* with it being skipped.
+2. Fix whatever comes back from that pass.
+3. Ask permission → commit (nothing from this sprint is committed yet).
+4. Rebuild the release AAB, refresh the `D:\PlayStoreBackups` copy.
+5. Then the pre-existing next-sprint items below.
+
+**Older next-sprint items, still pending:**
+1. **The app's actual launcher icon is still the old indigo design**
    (`assets/icon/ic_full.png` / `ic_fg.png` / `ic_bg.png`), never regenerated to
    match Warm. Surfaced while placing the icon inside the empty-vault circle —
    `ic_fg.png`'s glyph itself (not just backgrounds) is indigo/white, so even
    the in-app placement is a deliberate mismatch, not a real fix. This is what
    shows on the phone's home screen and app drawer, so it's a first-impression
    issue, not a cosmetic detail.
-3. **Device-test the reminder notification actions** (Paid/Snooze/Skip) with the
+2. **Device-test the reminder notification actions** (Paid/Snooze/Skip) with the
    app fully closed — still unverified. Claude cannot tap through this device
    (input injection blocked, no INJECT_EVENTS permission over this ADB
    connection) and cannot force the app to stay backgrounded for a real
    notification-tap test; this needs a human pass.
-4. Update the Play Console **Data Safety** form (CVV storage), then upload.
-5. Install Android **cmdline-tools** to fix the cosmetic `flutter build
+3. Update the Play Console **Data Safety** form (CVV storage, and now the
+   in-app Data & Privacy screen text should match too), then upload.
+4. Install Android **cmdline-tools** to fix the cosmetic `flutter build
    appbundle` exit-1 (see Known issues).
 
 ## Known issues / TODO
@@ -176,6 +280,26 @@ safety, all as **real, working features**, not just UI.
   `CardFrontFace` / `CardListSkeleton` smoke tests, not a counter-app test.
 
 ## Gotchas — read before changing things
+
+- **Drive sign-in breaks whenever a new signing key appears, and only in that
+  key's builds.** `google_sign_in` resolves the OAuth client server-side from
+  **package name + signing SHA-1**; `google-services.json` is not consulted for
+  it. So a debug build can work perfectly while release fails with
+  `ApiException: 10`. Any new keystore (or a Play key rotation) means adding
+  that SHA-1 in Firebase — no code change, no rebuild.
+- **This project does not use Firebase.** No `firebase_core`, no Firestore, no
+  Analytics — `grep -rn firebase pubspec.yaml lib/` returns nothing. The only
+  trace is the `com.google.gms.google-services` Gradle plugin
+  (`android/settings.gradle.kts:24`) reading `android/app/google-services.json`.
+  Firebase is present purely because it's the easy UI for creating the Cloud
+  project, consent screen and Android OAuth clients that Drive backup needs.
+  Don't add Firebase SDKs assuming they're already wired up, and don't delete
+  the plugin/JSON assuming they're dead weight without checking first.
+- **`GoogleDriveService.signIn()` swallows the real error.** It catches
+  everything and returns `null`, which `BackupCubit` renders as "Sign-in
+  cancelled or failed. Try again." — so a user tapping Cancel and a hard
+  `DEVELOPER_ERROR` look identical. That is why the SHA-1 bug went unnoticed
+  for three releases. Worth surfacing the `PlatformException` code.
 
 - **`PaymentCard.cvv` is nullable and must stay nullable.** Every card saved before
   1.0.2 has no CVV; making it required would break loading them. Same for the
@@ -220,3 +344,30 @@ safety, all as **real, working features**, not just UI.
   degrades to a render error) and loudly in `flutter test` ("Unable to load
   asset"). The test failure is what caught it — if a newly added `Image.asset`
   call isn't covered by any widget test, this class of bug can ship silently.
+- **New radio-style pickers must use a `RadioGroup<T>` ancestor, not
+  `RadioListTile.groupValue`/`onChanged`.** The latter was deprecated in
+  Flutter 3.32 (`flutter analyze` flags it); this project is on 3.44, so new
+  code should wrap the tiles in `RadioGroup<T>(groupValue:, onChanged:,
+  child: Column(...))` instead — see `core/ui/settings_picker_sheet.dart` and
+  `theme_picker_tile.dart` for the pattern.
+- **A `ListTile`/`InkWell` inside a colour-filled box has no ripple.** Ink is
+  painted on the nearest `Material` ancestor, so a `Container` with a
+  `color`/`BoxDecoration(color:)` in between hides the splash completely
+  (Flutter asserts on the `ListTile` case in debug — it surfaced as a *test*
+  failure, never as anything visible on device). Put the surface colour on a
+  `Material` and leave only the border on the box inside it, the way
+  `settings_row_tile.dart` and `support_tiles.dart` do.
+- **`FeedbackService` deliberately opens the Play *listing*, not the in-app
+  review dialog.** Play's policy forbids triggering `requestReview()` from a
+  button, and Play throttles that dialog hard — a throttled call returns
+  normally and shows nothing, so the button would look broken. For the same
+  policy reason the 5 stars are decorative and all lead to the same page:
+  routing happy raters to the store and unhappy ones elsewhere is review
+  gating, which gets apps pulled.
+
+- **A settings cubit that must survive restarts follows `ThemeCubit`'s
+  shape**: a `static _load(SharedPreferences)` that reads with a safe
+  `orElse` fallback, plain setters that write the pref then `emit`, and a
+  `registerLazySingleton` in `service_locator.dart` fed the same shared
+  `prefs` instance. `SettingsCubit` (text size, lock delay) copies this
+  exactly — reuse it again rather than inventing a new persistence shape.

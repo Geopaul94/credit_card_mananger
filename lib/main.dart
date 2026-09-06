@@ -7,6 +7,7 @@ import 'core/auth/auth_cubit.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/backup/backup_cubit.dart';
 import 'core/di/service_locator.dart';
+import 'core/settings/settings_cubit.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_cubit.dart';
 import 'core/theme/warm_theme.dart';
@@ -32,6 +33,7 @@ class MyApp extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider(create: (_) => sl<ThemeCubit>()),
+        BlocProvider(create: (_) => sl<SettingsCubit>()),
         // AuthCubit lives at the root — survives navigator pushes
         BlocProvider(create: (_) => sl<AuthCubit>()),
         // BackupCubit lives at the root so auto-backup can fire after unlock
@@ -48,17 +50,22 @@ class MyApp extends StatelessWidget {
             darkTheme: isWarm ? WarmTheme.dark : AppTheme.dark,
             builder: (context, child) {
               final media = MediaQuery.of(context);
+              final textSize = context.watch<SettingsCubit>().state.textSize;
+              final override = textSize.scaleFactor;
               return MediaQuery(
-                // Respect the user's font-size setting, but bound it. Card
-                // faces are fixed-height graphics with the number, holder and
-                // expiry laid out like a real card; unbounded scaling
-                // overflows them. This still honours a genuine accessibility
-                // need while keeping every screen intact.
+                // A manual text-size choice replaces the platform value
+                // outright; otherwise respect the system setting, but bound
+                // it. Card faces are fixed-height graphics with the number,
+                // holder and expiry laid out like a real card; unbounded
+                // scaling overflows them. This still honours a genuine
+                // accessibility need while keeping every screen intact.
                 data: media.copyWith(
-                  textScaler: media.textScaler.clamp(
-                    minScaleFactor: 0.9,
-                    maxScaleFactor: 1.3,
-                  ),
+                  textScaler: override != null
+                      ? TextScaler.linear(override)
+                      : media.textScaler.clamp(
+                          minScaleFactor: 0.9,
+                          maxScaleFactor: 1.3,
+                        ),
                 ),
                 // Tapping anywhere outside a text field dismisses the
                 // keyboard, app-wide.
@@ -87,6 +94,8 @@ class _AppGate extends StatefulWidget {
 }
 
 class _AppGateState extends State<_AppGate> with WidgetsBindingObserver {
+  Timer? _lockTimer;
+
   @override
   void initState() {
     super.initState();
@@ -96,18 +105,34 @@ class _AppGateState extends State<_AppGate> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _lockTimer?.cancel();
     super.dispose();
   }
 
   /// Re-lock whenever the app leaves the foreground, so card data is never
   /// reachable without re-auth. Covers paused/hidden/detached (but not the
   /// transient `inactive` the iOS biometric sheet itself triggers).
+  ///
+  /// The user's lock-delay setting decides how long the app waits before
+  /// locking rather than whether it locks — with a delay set, resuming
+  /// before the timer fires just cancels it, so the vault stays open. This
+  /// is unrelated to AuthCubit's trusted-interruption grace window, which
+  /// only forgives the camera's own background hop during a scan.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
-      context.read<AuthCubit>().lock();
+      final delay = context.read<SettingsCubit>().state.lockDelay.delay;
+      if (delay == Duration.zero) {
+        context.read<AuthCubit>().lock();
+      } else {
+        _lockTimer?.cancel();
+        _lockTimer = Timer(delay, () => context.read<AuthCubit>().lock());
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      _lockTimer?.cancel();
+      _lockTimer = null;
     }
   }
 

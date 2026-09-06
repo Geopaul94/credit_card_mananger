@@ -7,7 +7,9 @@ import '../auth/biometric_service.dart';
 import '../backup/backup_cubit.dart';
 import '../backup/google_drive_service.dart';
 import '../encryption/encryption_service.dart';
+import '../feedback/feedback_service.dart';
 import '../notifications/notification_service.dart';
+import '../settings/settings_cubit.dart';
 import '../storage/secure_card_storage.dart';
 import '../theme/theme_cubit.dart';
 import '../../features/cards/presentation/bloc/add_card/add_card_cubit.dart';
@@ -57,10 +59,12 @@ Future<void> setupDependencies() async {
     ..registerLazySingleton<CardScanService>(CardScanService.new,
         dispose: (s) => s.dispose())
     ..registerLazySingleton<GoogleDriveService>(GoogleDriveService.new)
+    ..registerLazySingleton<FeedbackService>(FeedbackService.new)
 
     // ── Auth — singleton so lock state survives widget rebuilds ───────────────
     ..registerLazySingleton<AuthCubit>(() => AuthCubit(sl()))
     ..registerLazySingleton<ThemeCubit>(() => ThemeCubit(prefs))
+    ..registerLazySingleton<SettingsCubit>(() => SettingsCubit(prefs))
 
     // ── Backup — singleton so state survives navigation ───────────────────────
     ..registerLazySingleton<BackupCubit>(
