@@ -101,8 +101,8 @@ Data flows: screen → `CardOverviewBloc` event → use case → repository →
 ## Next sprint — START HERE
 
 **In progress: You/Settings screen redesign.** All 5 planned pieces are
-**implemented** (this branch, `sprint-cvv-restore`, nothing committed yet —
-see below). `flutter analyze` is clean, all 80 existing tests still pass,
+**implemented and committed** (`d573e8d` on branch `sprint-cvv-restore`, not
+pushed, not merged to `main`). `flutter analyze` is clean, all 84 tests pass,
 `flutter build apk --debug` succeeds, and the app installs and launches to
 the lock screen without crashing. **What's not done: a human on-device pass.**
 
@@ -216,9 +216,14 @@ bottom of the You tab, ported from Debt Tracker:
   Vault Play listing with its star widget, the feedback row opens a Gmail
   draft with the right recipient/subject/footer.
 
-**The backed-up AAB is now stale.** `CardVault-v1.0.3-build4-2026-09-03.aab`
-predates this section, so it must be rebuilt before upload (still 1.0.3+4 —
-bump only if 4 has been uploaded by then).
+**Rebuilt AAB (2026-09-06).** `build/app/outputs/bundle/release/app-release.aab`,
+backed up as
+`D:\PlayStoreBackups\cardvault_drive_playstore_backup\CardVault-v1.0.3-build4-2026-09-06.aab`.
+Manually verified as usual (the strip-symbols exit is still cosmetic): upload-key
+SHA-1 `C9:37:BF:12…`, versionCode 4, versionName 1.0.3, ABIs arm64-v8a /
+armeabi-v7a / x86_64, and the new `SENDTO`/`mailto` queries present in the
+shipped manifest. The two earlier 1.0.3+4 bundles in that folder are history —
+don't upload those.
 
 **Next in this thread:**
 1. Unlock the phone and walk through the **You** tab yourself — Appearance
@@ -232,8 +237,9 @@ bump only if 4 has been uploaded by then).
      started and cancelled, and the app then resumed into the vault — that is
      consistent with the lock working *and* with it being skipped.
 2. Fix whatever comes back from that pass.
-3. Ask permission → commit (nothing from this sprint is committed yet).
-4. Rebuild the release AAB, refresh the `D:\PlayStoreBackups` copy.
+3. ✅ Committed as `d573e8d` on `sprint-cvv-restore` (2026-09-06) — **not
+   pushed**, and not yet merged to `main`.
+4. ✅ AAB rebuilt and backed up (above).
 5. Then the pre-existing next-sprint items below.
 
 **Older next-sprint items, still pending:**
