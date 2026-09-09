@@ -11,7 +11,7 @@ import '../pages/home_screen/home_screen.dart';
 import '../pages/profile_screen/profile_screen.dart';
 import '../pages/reminder_screen/reminder_screen.dart';
 
-/// Four equal destinations — Cards, Reminders, Backup, You — with no centre
+/// Four equal destinations — Cards, Reminders, Backup, Settings — with no centre
 /// action slot. Adding a card is now a floating button on the Cards screen
 /// itself (top-right, above the bar), not a slot inside the nav pill.
 class BottomNavigationBarWidget extends StatelessWidget {
@@ -57,7 +57,7 @@ class _FloatingNavBar extends StatelessWidget {
     _TabData(icon: Icons.credit_card_outlined, label: 'Cards'),
     _TabData(icon: Icons.notifications_rounded, label: 'Reminders'),
     _TabData(icon: Icons.cloud_outlined, label: 'Backup'),
-    _TabData(icon: Icons.person_rounded, label: 'You'),
+    _TabData(icon: Icons.settings_outlined, label: 'Settings'),
   ];
 
   @override
