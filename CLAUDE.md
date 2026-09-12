@@ -7,7 +7,7 @@ encrypted, biometric-locked. Live on the Play Store.
 |---|---|
 | applicationId | `com.geo.credit_cards` — **never change this** |
 | App name | Card Vault |
-| Current version | 1.0.4+6 (unreleased; 1.0.1+2 is live) |
+| Current version | 1.0.5+7 (unreleased; 1.0.1+2 is live) |
 | Keystore backup | `D:\PlayStoreBackups\cardvault_drive_playstore_backup` |
 | Privacy policy | `docs/privacy-policy.html` |
 

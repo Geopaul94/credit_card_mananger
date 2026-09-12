@@ -2,6 +2,12 @@
 
 One line per user-visible change, newest version first.
 
+## [1.0.5] — (versionCode 7)
+
+### Added
+- Card folders included in encrypted Google Drive backup and restore.
+- Seamless folder restoration with AES-256 encryption.
+
 ## [1.0.4] — (versionCode 6)
 
 ### Added
