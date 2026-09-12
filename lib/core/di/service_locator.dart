@@ -10,6 +10,7 @@ import '../encryption/encryption_service.dart';
 import '../feedback/feedback_service.dart';
 import '../notifications/notification_service.dart';
 import '../settings/settings_cubit.dart';
+import '../storage/folder_storage.dart';
 import '../storage/secure_card_storage.dart';
 import '../theme/theme_cubit.dart';
 import '../../features/cards/presentation/bloc/add_card/add_card_cubit.dart';
@@ -42,6 +43,8 @@ Future<void> setupDependencies() async {
         () => EncryptionService(secureStorage))
     ..registerLazySingleton<SecureCardStorage>(
         () => SecureCardStorage(sl(), prefs))
+    ..registerLazySingleton<FolderStorage>(
+        () => FolderStorage(sl(), prefs))
 
     // ── Data layer ────────────────────────────────────────────────────────────
     ..registerLazySingleton<LocalCardDataSource>(
@@ -68,7 +71,7 @@ Future<void> setupDependencies() async {
 
     // ── Backup — singleton so state survives navigation ───────────────────────
     ..registerLazySingleton<BackupCubit>(
-        () => BackupCubit(sl(), sl(), sl(), sl()))
+        () => BackupCubit(sl(), sl(), sl(), sl(), sl()))
 
     // ── Presentation factories ────────────────────────────────────────────────
     ..registerFactory<AddCardCubit>(() => AddCardCubit(sl()))

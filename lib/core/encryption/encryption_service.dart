@@ -17,6 +17,7 @@ class EncryptionService {
   final FlutterSecureStorage _secureStorage;
 
   static const _localKeyName = 'cv_local_aes_key_v1';
+  Key? _cachedLocalKey;
 
   // ── Local encryption (device key) ─────────────────────────────────────────
 
@@ -31,13 +32,14 @@ class EncryptionService {
   }
 
   Future<Key> _localKey() async {
+    if (_cachedLocalKey != null) return _cachedLocalKey!;
     var b64 = await _secureStorage.read(key: _localKeyName);
     if (b64 == null) {
       final k = Key.fromSecureRandom(32);
       b64 = k.base64;
       await _secureStorage.write(key: _localKeyName, value: b64);
     }
-    return Key.fromBase64(b64);
+    return _cachedLocalKey = Key.fromBase64(b64);
   }
 
   // ── Backup encryption (Google-ID derived key) ──────────────────────────────

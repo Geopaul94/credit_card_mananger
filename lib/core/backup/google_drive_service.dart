@@ -31,6 +31,9 @@ class GoogleDriveService {
 
   late final GoogleSignIn _googleSignIn;
   GoogleSignInAccount? _currentUser;
+  String? _lastAuthError;
+
+  String? get lastAuthError => _lastAuthError;
 
   GoogleDriveService() {
     _googleSignIn = GoogleSignIn(
@@ -54,16 +57,25 @@ class GoogleDriveService {
   /// token can't silently fail later — same as the debt-tracker pattern.
   Future<GoogleSignInAccount?> signIn() async {
     try {
+      _lastAuthError = null;
       await _googleSignIn.disconnect().catchError((_) => null);
       final account = await _googleSignIn.signIn();
-      if (account == null) return null;
+      if (account == null) {
+        _lastAuthError = 'Google Sign-In returned no account.';
+        return null;
+      }
       // Verify we can obtain auth headers — if this fails, the sign-in is bad.
       final headers = await account.authHeaders;
-      if (headers.isEmpty) return null;
+      if (headers.isEmpty) {
+        _lastAuthError = 'Google Sign-In returned no auth headers.';
+        return null;
+      }
       _currentUser = account;
+      _lastAuthError = null;
       return account;
     } catch (e) {
-      debugPrint('GoogleDriveService.signIn error: $e');
+      _lastAuthError = 'GoogleDriveService.signIn error: $e';
+      debugPrint(_lastAuthError);
       return null;
     }
   }
@@ -75,17 +87,23 @@ class GoogleDriveService {
       debugPrint('GoogleDriveService.signOut error: $e');
     } finally {
       _currentUser = null;
+      _lastAuthError = null;
     }
   }
 
   /// Restores a previous session silently (no UI shown).
   Future<GoogleSignInAccount?> signInSilently() async {
     try {
+      _lastAuthError = null;
       final account = await _googleSignIn.signInSilently();
-      if (account != null) _currentUser = account;
+      if (account != null) {
+        _currentUser = account;
+        _lastAuthError = null;
+      }
       return account;
     } catch (e) {
-      debugPrint('GoogleDriveService.signInSilently error: $e');
+      _lastAuthError = 'GoogleDriveService.signInSilently error: $e';
+      debugPrint(_lastAuthError);
       return null;
     }
   }

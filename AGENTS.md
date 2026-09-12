@@ -15,7 +15,7 @@ Gemini CLI, Aider, Windsurf, Zed…). Read this file first, then `CLAUDE.md`.
 | **Package / applicationId** | `com.geo.credit_cards` |
 | **Stack** | Flutter (Dart) — Android first, iOS-capable |
 | **SDK levels** | set by the Flutter toolchain (`flutter.*Version` in `android/app/build.gradle`) |
-| **Version** | 1.0.3+5 |
+| **Version** | 1.0.4+6 |
 | **Repo** | https://github.com/Geopaul94/credit_card_mananger.git |
 | **Distribution** | Google Play — production quality from day one |
 | **Owner** | Geo Paulson · geopaul94@gmail.com |

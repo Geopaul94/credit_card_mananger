@@ -94,6 +94,13 @@ class PaymentCard extends Equatable {
     return buf.toString();
   }
 
+  /// The last 4 digits of the card number (or fewer if total length < 4).
+  String get lastFour {
+    final d = cardNumber.replaceAll(RegExp(r'\D'), '');
+    return d.length >= 4 ? d.substring(d.length - 4) : d;
+  }
+
+
   /// e.g. "5th", "15th", "21st"
   String get dueDayLabel {
     if (dueDay == null) return '';

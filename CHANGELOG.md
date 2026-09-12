@@ -2,7 +2,17 @@
 
 One line per user-visible change, newest version first.
 
-## [1.0.2] — unreleased (versionCode 3)
+## [1.0.4] — (versionCode 6)
+
+### Added
+- Card folders feature to organize cards into custom color-coded folders.
+
+### Fixed
+- Fixed card saving resilience so platform notification permissions or scheduling errors do not block UI state updates.
+- Added `lastFour` helper to domain entity and cached AES encryption key in memory to eliminate KeyStore delays.
+
+## [1.0.3] — (versionCode 5)
+
 
 ### Added
 - Optional CVV. You can save a card's security code if you want to; leaving the

@@ -75,9 +75,9 @@ class ProfileScreen extends StatelessWidget {
             // ── Support ─────────────────────────────────────────────────────
             SectionLabel(label: 'SUPPORT'),
             SizedBox(height: context.spacing(8)),
-            const RateAppTile(),
-            SizedBox(height: context.spacing(8)),
             const SendFeedbackTile(),
+            SizedBox(height: context.spacing(8)),
+            const RateAppTile(),
           ],
         ),
       ),

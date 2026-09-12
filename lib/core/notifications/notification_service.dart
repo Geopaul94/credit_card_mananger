@@ -135,17 +135,21 @@ class NotificationService {
 
   Future<void> scheduleCardReminders(PaymentCard card) async {
     if (card.dueDay == null) return;
-    // The user has just asked to be reminded, so this is the moment the
-    // permission request makes sense to them.
-    await ensurePermission();
-    await cancelCardReminders(card.id);
-    await _scheduleAround(
-      cardId: card.id,
-      title: card.displayTitle,
-      dueDay: card.dueDay!,
-      dueDate: _nextDueDate(card.dueDay!),
-      dueDayLabel: card.dueDayLabel,
-    );
+    try {
+      // The user has just asked to be reminded, so this is the moment the
+      // permission request makes sense to them.
+      await ensurePermission();
+      await cancelCardReminders(card.id);
+      await _scheduleAround(
+        cardId: card.id,
+        title: card.displayTitle,
+        dueDay: card.dueDay!,
+        dueDate: _nextDueDate(card.dueDay!),
+        dueDayLabel: card.dueDayLabel,
+      );
+    } catch (_) {
+      // Scheduling is best-effort.
+    }
   }
 
   /// Adds one extra nudge for tomorrow evening, on top of whatever's already
@@ -159,38 +163,46 @@ class NotificationService {
   /// any of the real due-date reminders the way [_applySnooze] does.
   Future<void> snoozeFromList(PaymentCard card) async {
     if (card.dueDay == null) return;
-    await ensurePermission();
+    try {
+      await ensurePermission();
 
-    final now = DateTime.now();
-    final tomorrow = DateTime(now.year, now.month, now.day + 1, _reminderHour);
-    final label = card.dueDayLabel;
+      final now = DateTime.now();
+      final tomorrow = DateTime(now.year, now.month, now.day + 1, _reminderHour);
+      final label = card.dueDayLabel;
 
-    await _schedule(
-      id: _notifId(card.id, _snoozeSlot),
-      title: '💳 ${card.displayTitle} payment reminder',
-      body: label.isEmpty
-          ? 'A quick nudge, as requested.'
-          : 'A quick nudge, as requested — due on the $label.',
-      scheduledAt: tomorrow,
-      payload: jsonEncode({
-        'id': card.id,
-        'title': card.displayTitle,
-        'dueDay': card.dueDay,
-        'label': label,
-      }),
-    );
+      await _schedule(
+        id: _notifId(card.id, _snoozeSlot),
+        title: '💳 ${card.displayTitle} payment reminder',
+        body: label.isEmpty
+            ? 'A quick nudge, as requested.'
+            : 'A quick nudge, as requested — due on the $label.',
+        scheduledAt: tomorrow,
+        payload: jsonEncode({
+          'id': card.id,
+          'title': card.displayTitle,
+          'dueDay': card.dueDay,
+          'label': label,
+        }),
+      );
+    } catch (_) {
+      // Non-critical.
+    }
   }
 
   /// Cancel current-cycle reminders and reschedule for next month — used when
   /// the user marks a card paid, so they aren't nudged again this cycle.
   Future<void> rescheduleForNextMonth(PaymentCard card) async {
     if (card.dueDay == null) return;
-    await _rescheduleNextMonth(
-      cardId: card.id,
-      title: card.displayTitle,
-      dueDay: card.dueDay!,
-      dueDayLabel: card.dueDayLabel,
-    );
+    try {
+      await _rescheduleNextMonth(
+        cardId: card.id,
+        title: card.displayTitle,
+        dueDay: card.dueDay!,
+        dueDayLabel: card.dueDayLabel,
+      );
+    } catch (_) {
+      // Non-critical.
+    }
   }
 
   Future<void> _rescheduleNextMonth({

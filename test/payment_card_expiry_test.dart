@@ -92,4 +92,29 @@ void main() {
       expect(card.isExpiringSoon(withinDays: 150), isTrue);
     });
   });
+
+  group('lastFour', () {
+    test('returns the last 4 digits of a 16-digit card number', () {
+      const card = PaymentCard(
+        id: '1',
+        holderName: 'Geo Paulson',
+        cardNumber: '4532 1234 5678 9012',
+        expiryDate: '12/28',
+        typeLabel: 'Credit',
+      );
+      expect(card.lastFour, '9012');
+    });
+
+    test('handles unformatted string or string with fewer than 4 digits', () {
+      const cardShort = PaymentCard(
+        id: '2',
+        holderName: 'Geo Paulson',
+        cardNumber: '12',
+        expiryDate: '12/28',
+        typeLabel: 'Credit',
+      );
+      expect(cardShort.lastFour, '12');
+    });
+  });
 }
+

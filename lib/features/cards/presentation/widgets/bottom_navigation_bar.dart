@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../backup/presentation/backup_screen.dart';
 import '../bloc/bottom_navigation/bottom_navigation_bloc.dart';
 import '../bloc/bottom_navigation/bottom_navigation_event.dart';
 import '../bloc/bottom_navigation/bottom_navigation_state.dart';
 import '../bloc/card_overview/card_overview_bloc.dart';
 import '../bloc/card_overview/card_overview_state.dart';
+import '../pages/folders_screen/folders_screen.dart';
 import '../pages/home_screen/home_screen.dart';
 import '../pages/profile_screen/profile_screen.dart';
 import '../pages/reminder_screen/reminder_screen.dart';
@@ -27,10 +27,9 @@ class BottomNavigationBarWidget extends StatelessWidget {
             children: const [
               HomeScreen(),
               ReminderScreen(),
-              // BackupCubit and CardOverviewBloc are already ancestors here
-              // (provided at the app root and in _MainShell), so the screen
-              // can sit directly in the tab stack with no extra wrapping.
-              BackupScreen(),
+              // Folders now live in the main bottom nav. Backup remains
+              // accessible from Settings.
+              FoldersScreen(),
               ProfileScreen(),
             ],
           ),
@@ -56,7 +55,7 @@ class _FloatingNavBar extends StatelessWidget {
   static const _tabs = [
     _TabData(icon: Icons.credit_card_outlined, label: 'Cards'),
     _TabData(icon: Icons.notifications_rounded, label: 'Reminders'),
-    _TabData(icon: Icons.cloud_outlined, label: 'Backup'),
+    _TabData(icon: Icons.folder_outlined, label: 'Folders'),
     _TabData(icon: Icons.settings_outlined, label: 'Settings'),
   ];
 

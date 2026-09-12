@@ -5,7 +5,9 @@ import '../../../domain/entities/payment_card.dart';
 class CardOverviewState extends Equatable {
   const CardOverviewState({
     this.cards = const [],
-    this.isLoading = false,
+    // Start in loading so the Home screen does not briefly flash the empty
+    // vault while the saved cards are still being read from disk.
+    this.isLoading = true,
     this.errorMessage,
     this.paidCardIds = const {},
   });

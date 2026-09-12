@@ -82,7 +82,9 @@ class _BackupScreenState extends State<BackupScreen> {
                       color: Colors.white, size: 18),
                   const SizedBox(width: 8),
                   Text(state.restoredCount != null
-                      ? '${state.restoredCount} cards restored!'
+                      ? ((state.restoredFolderCount ?? 0) > 0
+                          ? '${state.restoredCount} cards & ${state.restoredFolderCount} folders restored!'
+                          : '${state.restoredCount} cards restored!')
                       : 'Backup uploaded to Google Drive ✓'),
                 ]),
                 backgroundColor: Colors.green.shade700,

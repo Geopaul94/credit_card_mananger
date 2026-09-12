@@ -125,10 +125,15 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
       );
 
       await _addCard(card);
-      await _notif.scheduleCardReminders(card);
-
       final cards = await _loadCards();
       emit(state.copyWith(cards: cards, clearError: true));
+
+      // Reminders are best-effort and must not block or revert a successfully saved card.
+      try {
+        await _notif.scheduleCardReminders(card);
+      } catch (_) {
+        // Ignored: Notification permissions/scheduling failure shouldn't affect card saving.
+      }
     } catch (_) {
       emit(state.copyWith(errorMessage: 'Unable to add card right now.'));
     }
@@ -157,28 +162,30 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
       );
       await _updateCard(normalized);
 
+      final cards = await _loadCards();
+      emit(state.copyWith(
+          cards: cards,
+          paidCardIds: _currentPaidIds(cards),
+          clearError: true));
+
       // Reschedule (or cancel) reminders when the due day changes, and clear
       // any stale "paid" flag — a changed/cleared cycle should start unpaid.
       final old = state.cards.firstWhere((c) => c.id == event.card.id,
           orElse: () => event.card);
       if (old.dueDay != event.card.dueDay) {
-        if (event.card.dueDay == null) {
-          await _notif.cancelCardReminders(event.card.id);
-        } else {
-          await _notif.scheduleCardReminders(normalized);
-        }
+        try {
+          if (event.card.dueDay == null) {
+            await _notif.cancelCardReminders(event.card.id);
+          } else {
+            await _notif.scheduleCardReminders(normalized);
+          }
+        } catch (_) {}
         if (_paidMap.containsKey(event.card.id)) {
           _paidMap = Map<String, DateTime>.from(_paidMap)
             ..remove(event.card.id);
           await _persistPaid();
         }
       }
-
-      final cards = await _loadCards();
-      emit(state.copyWith(
-          cards: cards,
-          paidCardIds: _currentPaidIds(cards),
-          clearError: true));
     } catch (_) {
       emit(state.copyWith(errorMessage: 'Unable to update card.'));
     }
@@ -228,8 +235,6 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
   ) async {
     try {
       await _deleteCard(event.cardId);
-      // Cancel any reminders so a deleted card can't fire orphaned notifications.
-      await _notif.cancelCardReminders(event.cardId);
       final cards = await _loadCards();
 
       // Drop any persisted paid mark for the removed card.
@@ -241,6 +246,11 @@ class CardOverviewBloc extends Bloc<CardOverviewEvent, CardOverviewState> {
           cards: cards,
           paidCardIds: _currentPaidIds(cards),
           clearError: true));
+
+      // Cancel any reminders so a deleted card can't fire orphaned notifications.
+      try {
+        await _notif.cancelCardReminders(event.cardId);
+      } catch (_) {}
     } catch (_) {
       emit(state.copyWith(errorMessage: 'Unable to delete card.'));
     }

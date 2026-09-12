@@ -4,9 +4,11 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../../features/cards/domain/entities/card_folder.dart';
 import '../../features/cards/domain/entities/payment_card.dart';
 import '../../features/cards/domain/repositories/card_repository.dart';
 import '../encryption/encryption_service.dart';
+import '../storage/folder_storage.dart';
 import '../storage/secure_card_storage.dart';
 import 'google_drive_service.dart';
 
@@ -28,6 +30,7 @@ class BackupState extends Equatable {
     this.account,
     this.lastDriveBackup,
     this.restoredCount,
+    this.restoredFolderCount,
     this.errorMessage,
     this.autoEnabled = true,
   });
@@ -36,6 +39,7 @@ class BackupState extends Equatable {
   final GoogleSignInAccount? account;
   final DateTime? lastDriveBackup;
   final int? restoredCount; // non-null after a successful restore
+  final int? restoredFolderCount;
   final String? errorMessage;
   final bool autoEnabled;
 
@@ -52,6 +56,7 @@ class BackupState extends Equatable {
     DateTime? lastDriveBackup,
     bool clearDriveTime = false,
     int? restoredCount,
+    int? restoredFolderCount,
     bool clearRestoredCount = false,
     String? errorMessage,
     bool clearError = false,
@@ -64,14 +69,24 @@ class BackupState extends Equatable {
           clearDriveTime ? null : (lastDriveBackup ?? this.lastDriveBackup),
       restoredCount:
           clearRestoredCount ? null : (restoredCount ?? this.restoredCount),
+      restoredFolderCount: clearRestoredCount
+          ? null
+          : (restoredFolderCount ?? this.restoredFolderCount),
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       autoEnabled: autoEnabled ?? this.autoEnabled,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [phase, account, lastDriveBackup, restoredCount, errorMessage, autoEnabled];
+  List<Object?> get props => [
+        phase,
+        account,
+        lastDriveBackup,
+        restoredCount,
+        restoredFolderCount,
+        errorMessage,
+        autoEnabled,
+      ];
 }
 
 // ─── Cubit ────────────────────────────────────────────────────────────────────
@@ -82,12 +97,15 @@ class BackupCubit extends Cubit<BackupState> {
     this._encryption,
     this._storage,
     this._repository,
+    this._folderStorage,
   ) : super(const BackupState());
 
   final GoogleDriveService _drive;
   final EncryptionService _encryption;
   final SecureCardStorage _storage;
   final CardRepository _repository;
+  final FolderStorage _folderStorage;
+
 
   // ── Initialise (call on app start / profile open) ─────────────────────────
 
@@ -118,9 +136,12 @@ class BackupCubit extends Cubit<BackupState> {
     emit(state.copyWith(phase: BackupPhase.signingIn, clearError: true));
     final account = await _drive.signIn();
     if (account == null) {
+      final reason = _drive.lastAuthError;
       emit(state.copyWith(
         phase: BackupPhase.error,
-        errorMessage: 'Sign-in cancelled or failed. Try again.',
+        errorMessage: reason != null
+            ? 'Google sign-in failed. This usually means the app fingerprint is not registered in Firebase/Google Cloud for com.geo.credit_cards.\n\nDetails: $reason'
+            : 'Sign-in cancelled or failed. Try again.',
       ));
       return;
     }
@@ -131,7 +152,8 @@ class BackupCubit extends Cubit<BackupState> {
       lastDriveBackup: driveTime,
     ));
 
-    if (cards.isNotEmpty && driveTime == null) {
+    final folders = await _folderStorage.loadFolders();
+    if ((cards.isNotEmpty || folders.isNotEmpty) && driveTime == null) {
       await backupNow(cards);
     }
   }
@@ -157,15 +179,16 @@ class BackupCubit extends Cubit<BackupState> {
           errorMessage: 'Sign in with Google first.'));
       return;
     }
-    if (cards.isEmpty) {
+    final folders = await _folderStorage.loadFolders();
+    if (cards.isEmpty && folders.isEmpty) {
       emit(state.copyWith(
           phase: BackupPhase.error,
-          errorMessage: 'Nothing to back up — add a card first.'));
+          errorMessage: 'Nothing to back up — add a card or folder first.'));
       return;
     }
     emit(state.copyWith(phase: BackupPhase.backingUp, clearError: true));
     try {
-      final payload = _buildPayload(cards, account.id);
+      final payload = _buildPayload(cards, folders, account.id);
       await _drive.uploadBackup(payload);
       await _storage.markBackedUp();
 
@@ -210,14 +233,18 @@ class BackupCubit extends Cubit<BackupState> {
         ));
         return;
       }
-      final cards = _parsePayload(payload, account.id);
-      await _repository.replaceAll(cards);
+      final result = _parsePayload(payload, account.id);
+      await _repository.replaceAll(result.cards);
+      if (result.folders != null) {
+        await _folderStorage.saveFolders(result.folders!);
+      }
       // Reset the auto-backup window so a fresh-device restore doesn't
       // immediately trigger an auto-backup on the next card load.
       await _storage.markBackedUp();
       emit(state.copyWith(
         phase: BackupPhase.success,
-        restoredCount: cards.length,
+        restoredCount: result.cards.length,
+        restoredFolderCount: result.folders?.length ?? 0,
       ));
     } catch (e) {
       emit(state.copyWith(
@@ -256,7 +283,8 @@ class BackupCubit extends Cubit<BackupState> {
   Future<void> autoBackupIfNeeded(List<PaymentCard> cards) async {
     if (!_storage.isAutoBackupEnabled) return;
     if (!_storage.needsAutoBackup) return;
-    if (cards.isEmpty) return;
+    final folders = await _folderStorage.loadFolders();
+    if (cards.isEmpty && folders.isEmpty) return;
     if (state.account == null) {
       final account = await _drive.signInSilently();
       if (account == null) return;
@@ -271,9 +299,13 @@ class BackupCubit extends Cubit<BackupState> {
 
   // ── Serialisation ─────────────────────────────────────────────────────────
 
-  String _buildPayload(List<PaymentCard> cards, String googleId) {
+  String _buildPayload(
+    List<PaymentCard> cards,
+    List<CardFolder> folders,
+    String googleId,
+  ) {
     final json = jsonEncode({
-      'version': 1,
+      'version': 2,
       'created': DateTime.now().toIso8601String(),
       'cards': cards
           .map((c) => {
@@ -291,15 +323,19 @@ class BackupCubit extends Cubit<BackupState> {
                 if (c.notes != null) 'notes': c.notes,
               })
           .toList(),
+      'folders': folders.map((f) => f.toMap()).toList(),
     });
     return _encryption.encryptForBackup(json, googleId);
   }
 
-  List<PaymentCard> _parsePayload(String payload, String googleId) {
+  ({List<PaymentCard> cards, List<CardFolder>? folders}) _parsePayload(
+    String payload,
+    String googleId,
+  ) {
     final json = _encryption.decryptFromBackup(payload, googleId);
     final map = jsonDecode(json) as Map<String, dynamic>;
-    final list = map['cards'] as List<dynamic>;
-    return list.map((e) {
+    final cardList = (map['cards'] as List<dynamic>?) ?? [];
+    final cards = cardList.map((e) {
       final m = e as Map<String, dynamic>;
       return PaymentCard(
         id: m['id'] as String,
@@ -315,5 +351,16 @@ class BackupCubit extends Cubit<BackupState> {
         notes: m['notes'] as String?,
       );
     }).toList();
+
+    List<CardFolder>? folders;
+    if (map.containsKey('folders') && map['folders'] != null) {
+      final folderList = map['folders'] as List<dynamic>;
+      folders = folderList
+          .map((e) => CardFolder.fromMap(e as Map<String, dynamic>))
+          .toList();
+    }
+
+    return (cards: cards, folders: folders);
   }
 }
+

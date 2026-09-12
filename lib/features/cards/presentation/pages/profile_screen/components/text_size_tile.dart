@@ -20,40 +20,45 @@ class TextSizeTile extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final option = context.watch<SettingsCubit>().state.textSize;
 
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: context.spacing(14),
-        vertical: context.spacing(6),
-      ),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(context.spacing(14)),
-        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.12)),
-      ),
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        onTap: () => _openPicker(context, option),
-        leading: Container(
-          width: context.spacing(36),
-          height: context.spacing(36),
-          decoration: BoxDecoration(
-            color: colorScheme.primary.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(context.spacing(10)),
+    final radius = BorderRadius.circular(context.spacing(14));
+    return Material(
+      color: colorScheme.surface,
+      borderRadius: radius,
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: context.spacing(14),
+          vertical: context.spacing(6),
+        ),
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          border: Border.all(color: colorScheme.outline.withValues(alpha: 0.12)),
+        ),
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          onTap: () => _openPicker(context, option),
+          leading: Container(
+            width: context.spacing(36),
+            height: context.spacing(36),
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(context.spacing(10)),
+            ),
+            child: Icon(Icons.format_size, size: context.spacing(20)),
           ),
-          child: Icon(Icons.format_size, size: context.spacing(20)),
-        ),
-        title: Text(
-          'Text size',
-          style: TextStyle(
-            fontSize: context.font(15),
-            fontWeight: FontWeight.w600,
+          title: Text(
+            'Text size',
+            style: TextStyle(
+              fontSize: context.font(15),
+              fontWeight: FontWeight.w600,
+            ),
           ),
+          subtitle: Text(
+            _labels[option]!,
+            style: TextStyle(fontSize: context.font(12)),
+          ),
+          trailing: const Icon(Icons.chevron_right),
         ),
-        subtitle: Text(
-          _labels[option]!,
-          style: TextStyle(fontSize: context.font(12)),
-        ),
-        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }
