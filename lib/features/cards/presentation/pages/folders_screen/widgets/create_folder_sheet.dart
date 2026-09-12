@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../../core/theme/card_palette.dart';
 import '../../../../domain/entities/card_folder.dart';
 import '../../../../domain/entities/payment_card.dart';
+import '../../../bloc/card_overview/card_overview_bloc.dart';
 import 'folder_palette.dart';
 
 /// Modal bottom sheet to create or edit a folder.
@@ -268,85 +270,107 @@ class _CreateFolderSheetState extends State<CreateFolderSheet> {
                 const SizedBox(height: 20),
 
                 // Card Selection
-                if (widget.allCards.isNotEmpty) ...[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'INCLUDE CARDS (${_selectedCardIds.length})',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.6,
+                Builder(
+                  builder: (context) {
+                    List<PaymentCard> effectiveCards = widget.allCards;
+                    try {
+                      final blocCards =
+                          context.watch<CardOverviewBloc>().state.cards;
+                      if (blocCards.isNotEmpty) {
+                        effectiveCards = blocCards;
+                      }
+                    } catch (_) {}
+
+                    if (effectiveCards.isEmpty) return const SizedBox.shrink();
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'INCLUDE CARDS (${_selectedCardIds.length})',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.6,
+                                  ),
                             ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            if (_selectedCardIds.length ==
-                                widget.allCards.length) {
-                              _selectedCardIds.clear();
-                            } else {
-                              _selectedCardIds = {
-                                for (final c in widget.allCards) c.id
-                              };
-                            }
-                          });
-                        },
-                        child: Text(_selectedCardIds.length ==
-                                widget.allCards.length
-                            ? 'Deselect all'
-                            : 'Select all'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  ...widget.allCards.map((card) {
-                    final isChecked = _selectedCardIds.contains(card.id);
-                    return CheckboxListTile(
-                      value: isChecked,
-                      onChanged: (val) {
-                        HapticFeedback.selectionClick();
-                        setState(() {
-                          if (val == true) {
-                            _selectedCardIds.add(card.id);
-                          } else {
-                            _selectedCardIds.remove(card.id);
-                          }
-                        });
-                      },
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      title: Text(
-                        card.displayTitle,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: Text('•••• ${card.lastFour}'),
-                      secondary: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: CardPalette.forCard(card),
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Center(
-                          child: Text(
-                            card.displayTitle.isNotEmpty
-                                ? card.displayTitle[0].toUpperCase()
-                                : 'C',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  if (_selectedCardIds.length ==
+                                      effectiveCards.length) {
+                                    _selectedCardIds.clear();
+                                  } else {
+                                    _selectedCardIds = {
+                                      for (final c in effectiveCards) c.id
+                                    };
+                                  }
+                                });
+                              },
+                              child: Text(_selectedCardIds.length ==
+                                      effectiveCards.length
+                                  ? 'Deselect all'
+                                  : 'Select all'),
                             ),
-                          ),
+                          ],
                         ),
-                      ),
+                        const SizedBox(height: 4),
+                        ...effectiveCards.map((card) {
+                          final isChecked = _selectedCardIds.contains(card.id);
+                          return CheckboxListTile(
+                            value: isChecked,
+                            onChanged: (val) {
+                              HapticFeedback.selectionClick();
+                              setState(() {
+                                if (val == true) {
+                                  _selectedCardIds.add(card.id);
+                                } else {
+                                  _selectedCardIds.remove(card.id);
+                                }
+                              });
+                            },
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            title: Text(
+                              card.displayTitle,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Text('•••• ${card.lastFour}'),
+                            secondary: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: CardPalette.forCard(card),
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  card.displayTitle.isNotEmpty
+                                      ? card.displayTitle[0].toUpperCase()
+                                      : 'C',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
                     );
-                  }),
-                ],
+                  },
+                ),
               ],
             ),
           ),

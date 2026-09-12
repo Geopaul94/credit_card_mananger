@@ -57,6 +57,7 @@ class _FolderDetailSheetState extends State<FolderDetailSheet> {
 
   void _toggleCard(PaymentCard card) {
     HapticFeedback.selectionClick();
+    if (!mounted) return;
     final newIds = List<String>.from(_folder.cardIds);
     if (newIds.contains(card.id)) {
       newIds.remove(card.id);
@@ -312,54 +313,57 @@ class _CardListTile extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final cardGrad = CardPalette.forCard(card);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
         color: scheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: scheme.outline.withValues(alpha: 0.12),
-        ),
-      ),
-      child: ListTile(
-        onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-        leading: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: cardGrad,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(10),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: scheme.outline.withValues(alpha: 0.12),
           ),
-          child: Center(
-            child: Text(
-              card.displayTitle.isNotEmpty
-                  ? card.displayTitle.substring(0, 1).toUpperCase()
-                  : 'C',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 16,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          onTap: onTap,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          leading: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: cardGrad,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Center(
+              child: Text(
+                card.displayTitle.isNotEmpty
+                    ? card.displayTitle.substring(0, 1).toUpperCase()
+                    : 'C',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
               ),
             ),
           ),
-        ),
-        title: Text(
-          card.displayTitle,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-        ),
-        subtitle: Text(
-          '•••• ${card.lastFour} · ${card.typeLabel}',
-          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
-        ),
-        trailing: IconButton(
-          icon: Icon(trailingIcon, color: trailingColor, size: 22),
-          tooltip: trailingTooltip,
-          onPressed: onTrailingTap,
+          title: Text(
+            card.displayTitle,
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
+          subtitle: Text(
+            '•••• ${card.lastFour} · ${card.typeLabel}',
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+          ),
+          trailing: IconButton(
+            icon: Icon(trailingIcon, color: trailingColor, size: 22),
+            tooltip: trailingTooltip,
+            onPressed: onTrailingTap,
+          ),
         ),
       ),
     );

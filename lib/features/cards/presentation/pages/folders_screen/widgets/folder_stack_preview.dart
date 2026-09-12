@@ -22,13 +22,15 @@ class FolderStackPreview extends StatelessWidget {
     final count = displayCards.length;
 
     return Center(
-      child: SizedBox(
-        width: 220,
-        height: 140,
-        child: Stack(
-          alignment: Alignment.center,
-          clipBehavior: Clip.none,
-          children: [
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: SizedBox(
+          width: 220,
+          height: 140,
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
             if (count >= 3)
               Positioned(
                 top: 0,
@@ -67,7 +69,7 @@ class FolderStackPreview extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ),);
   }
 }
 
@@ -181,9 +183,11 @@ class _EmptyFolderPocket extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Container(
-        width: 150,
-        height: 90,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Container(
+          width: 150,
+          height: 90,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           color: Colors.white.withValues(alpha: 0.08),
@@ -213,6 +217,6 @@ class _EmptyFolderPocket extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ),);
   }
 }

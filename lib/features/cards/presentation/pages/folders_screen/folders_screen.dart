@@ -8,10 +8,11 @@ import '../../../../../core/ui/responsive_layout.dart';
 import '../../../domain/entities/card_folder.dart';
 import '../../../domain/entities/payment_card.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
+import '../../bloc/card_overview/card_overview_event.dart';
 import '../../bloc/card_overview/card_overview_state.dart';
+import 'folder_cards_screen.dart';
 import 'widgets/create_folder_sheet.dart';
 import 'widgets/empty_folders_view.dart';
-import 'widgets/folder_detail_sheet.dart';
 import 'widgets/folder_grid_card.dart';
 
 class FoldersScreen extends StatefulWidget {
@@ -31,6 +32,10 @@ class _FoldersScreenState extends State<FoldersScreen> {
   @override
   void initState() {
     super.initState();
+    final bloc = context.read<CardOverviewBloc>();
+    if (bloc.state.cards.isEmpty && !bloc.state.isLoading) {
+      bloc.add(const LoadCardsRequested());
+    }
     _loadPersistedFolders();
   }
 
@@ -121,29 +126,29 @@ class _FoldersScreenState extends State<FoldersScreen> {
     );
   }
 
-  void _openFolderDetail(CardFolder folder, List<PaymentCard> allCards) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => FolderDetailSheet(
-        folder: folder,
-        allCards: allCards,
-        onFolderUpdated: (updated) {
-          setState(() {
-            final idx = _folders.indexWhere((f) => f.id == updated.id);
-            if (idx != -1) {
-              _folders[idx] = updated;
-            }
-          });
-          _persistFolders();
-        },
-        onDeleteFolder: () {
-          _confirmDeleteFolder(folder);
-        },
-        onEditFolder: () {
-          _openCreateFolder(folder);
-        },
+  void _openFolderDetail(CardFolder folder) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => FolderCardsScreen(
+          folder: folder,
+          onFolderUpdated: (updated) {
+            if (!mounted) return;
+            setState(() {
+              final idx = _folders.indexWhere((f) => f.id == updated.id);
+              if (idx != -1) {
+                _folders[idx] = updated;
+              }
+            });
+            _persistFolders();
+          },
+          onFolderDeleted: () {
+            if (!mounted) return;
+            setState(() {
+              _folders.removeWhere((f) => f.id == folder.id);
+            });
+            _persistFolders();
+          },
+        ),
       ),
     );
   }
@@ -338,7 +343,7 @@ class _FoldersScreenState extends State<FoldersScreen> {
                                 crossAxisCount: isWide ? 2 : 1,
                                 crossAxisSpacing: 14,
                                 mainAxisSpacing: 14,
-                                childAspectRatio: isWide ? 1.05 : 1.42,
+                                childAspectRatio: isWide ? 1.05 : 1.30,
                               ),
                               itemCount: visibleFolders.length,
                               itemBuilder: (context, index) {
@@ -349,8 +354,7 @@ class _FoldersScreenState extends State<FoldersScreen> {
                                 return FolderGridCard(
                                   folder: folder,
                                   cards: folderCards,
-                                  onTap: () =>
-                                      _openFolderDetail(folder, allCards),
+                                  onTap: () => _openFolderDetail(folder),
                                   onEdit: () => _openCreateFolder(folder),
                                   onDelete: () => _confirmDeleteFolder(folder),
                                 );

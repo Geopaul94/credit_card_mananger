@@ -38,6 +38,10 @@ class MyApp extends StatelessWidget {
         BlocProvider(create: (_) => sl<AuthCubit>()),
         // BackupCubit lives at the root so auto-backup can fire after unlock
         BlocProvider(create: (_) => sl<BackupCubit>()),
+        // CardOverviewBloc & BottomNavigationBloc at the root so pushed routes
+        // (FolderCardsScreen, modal sheets, dialogs) have full access to card state
+        BlocProvider(create: (_) => sl<CardOverviewBloc>()),
+        BlocProvider(create: (_) => sl<BottomNavigationBloc>()),
       ],
       child: BlocBuilder<ThemeCubit, ThemeState>(
         builder: (context, themeState) {
@@ -157,14 +161,8 @@ class _MainShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(create: (_) => sl<BottomNavigationBloc>()),
-        BlocProvider(create: (_) => sl<CardOverviewBloc>()),
-      ],
-      child: const _NotificationActionListener(
-        child: BottomNavigationBarWidget(),
-      ),
+    return const _NotificationActionListener(
+      child: BottomNavigationBarWidget(),
     );
   }
 }
