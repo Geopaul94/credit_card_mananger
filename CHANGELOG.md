@@ -2,6 +2,12 @@
 
 One line per user-visible change, newest version first.
 
+## [1.0.8] — (versionCode 11)
+
+### Fixed
+- Fixed folder card selection stability and provider resolution.
+- Updated Google Play App Signing key registration for seamless Google Drive cloud backup.
+
 ## [1.0.6] — (versionCode 9)
 
 ### Added

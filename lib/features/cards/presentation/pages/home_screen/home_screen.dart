@@ -3,17 +3,23 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/backup/backup_cubit.dart';
+import '../../../../../core/di/service_locator.dart';
+import '../../../../../core/storage/folder_storage.dart';
 import '../../../../../core/ui/responsive_layout.dart';
 import '../../../../backup/presentation/backup_screen.dart';
+import '../../../domain/entities/card_folder.dart';
 import '../../../domain/entities/payment_card.dart';
 import '../../bloc/card_overview/card_overview_bloc.dart';
 import '../../bloc/card_overview/card_overview_event.dart';
 import '../../bloc/card_overview/card_overview_state.dart';
-import '../../widgets/card_chip.dart';
 import '../../widgets/card_skeleton.dart';
 import '../../widgets/card_tile.dart';
 import '../../widgets/empty_card_view.dart';
 import '../add_card_screen/add_card_screen.dart';
+import 'models/home_card_filter.dart';
+import 'widgets/card_filter_dropdown.dart';
+import 'widgets/home_header.dart';
+import 'widgets/next_bill_hero.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,17 +32,26 @@ class _HomeScreenState extends State<HomeScreen> {
   final _searchCtrl = TextEditingController();
   String _query = '';
   bool _searchOpen = false;
+  HomeCardFilter _selectedFilter = const AllCardsFilter();
+  List<CardFolder> _folders = const [];
 
   @override
   void initState() {
     super.initState();
     context.read<CardOverviewBloc>().add(const LoadCardsRequested());
+    _loadFolders();
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadFolders() async {
+    final folders = await sl<FolderStorage>().loadFolders();
+    if (!mounted) return;
+    setState(() => _folders = folders);
   }
 
   void _toggleSearch() {
@@ -49,15 +64,23 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  /// Matches against everything a person might recall about a card — the bank,
-  /// the product name, whose name is on it, its type, and the last four
-  /// digits, which is usually how a card is identified out loud.
-  List<PaymentCard> _filter(List<PaymentCard> cards) {
+  void _resetFilterAndSearch() {
+    setState(() {
+      _selectedFilter = const AllCardsFilter();
+      _searchCtrl.clear();
+      _query = '';
+    });
+  }
+
+  /// Filters cards by the active [HomeCardFilter] (type or folder), and then
+  /// matches against the search query if search is open.
+  List<PaymentCard> _filterCards(List<PaymentCard> cards) {
+    final filtered = _selectedFilter.apply(cards);
     final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return cards;
+    if (q.isEmpty) return filtered;
     final digits = q.replaceAll(RegExp(r'\D'), '');
 
-    return cards.where((c) {
+    return filtered.where((c) {
       final haystack = [
         c.bankName ?? '',
         c.cardName ?? '',
@@ -82,13 +105,11 @@ class _HomeScreenState extends State<HomeScreen> {
               return _ErrorView(
                 message: state.errorMessage!,
                 onRetry: () => context.read<CardOverviewBloc>().add(
-                  const LoadCardsRequested(),
-                ),
+                      const LoadCardsRequested(),
+                    ),
               );
             }
 
-            // An empty vault is also what a reinstall looks like, so this is
-            // where the offer to restore a Drive backup belongs.
             if (state.cards.isEmpty) {
               return BlocBuilder<BackupCubit, BackupState>(
                 buildWhen: (p, c) => p.account != c.account,
@@ -99,15 +120,24 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             }
 
-            final visible = _searchOpen ? _filter(state.cards) : state.cards;
+            final visible = _filterCards(state.cards);
             final isSearching = _searchOpen && _query.trim().isNotEmpty;
+            final isCustomOrdered =
+                !isSearching && _selectedFilter is AllCardsFilter;
 
-            // The hero and "ALL CARDS" label are hidden while actively
-            // searching, so filtered results get the room instead.
             final headers = <Widget>[
               if (!isSearching)
-                _NextBillHero(cards: state.cards, paidCardIds: state.paidCardIds),
-              if (!isSearching) _AllCardsLabel(count: state.cards.length),
+                NextBillHero(
+                  cards: state.cards,
+                  paidCardIds: state.paidCardIds,
+                ),
+              if (!isSearching)
+                _SectionHeader(
+                  selectedFilter: _selectedFilter,
+                  count: visible.length,
+                  folders: _folders,
+                  onFilterChanged: (f) => setState(() => _selectedFilter = f),
+                ),
             ];
 
             return ResponsiveContent(
@@ -123,13 +153,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _Header(
+                        HomeHeader(
                           searchOpen: _searchOpen,
                           onToggleSearch: _toggleSearch,
                         ),
                         if (_searchOpen) ...[
                           SizedBox(height: context.spacing(12)),
-                          _SearchField(
+                          HomeSearchField(
                             controller: _searchCtrl,
                             onChanged: (v) => setState(() => _query = v),
                           ),
@@ -139,13 +169,36 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   Expanded(
                     child: visible.isEmpty
-                        ? _NoMatches(query: _query.trim())
-                        // Lazily built, and reorderable by long-press drag.
-                        // Dragging is only meaningful on the unfiltered
-                        // list — while searching, visible indices don't
-                        // match stored positions — so results render plain.
+                        ? ListView(
+                            padding: EdgeInsets.fromLTRB(
+                              context.spacing(16),
+                              context.spacing(16),
+                              context.spacing(16),
+                              context.spacing(96),
+                            ),
+                            children: [
+                              for (final h in headers)
+                                Padding(
+                                  padding: EdgeInsets.only(
+                                    bottom: context.spacing(16),
+                                  ),
+                                  child: h,
+                                ),
+                              HomeNoMatches(
+                                query: _query.trim(),
+                                filterLabel: _selectedFilter is AllCardsFilter
+                                    ? null
+                                    : _selectedFilter.label,
+                                onClearFilter:
+                                    (_selectedFilter is! AllCardsFilter ||
+                                            isSearching)
+                                        ? _resetFilterAndSearch
+                                        : null,
+                              ),
+                            ],
+                          )
                         : ReorderableListView.builder(
-                            buildDefaultDragHandles: !isSearching,
+                            buildDefaultDragHandles: isCustomOrdered,
                             padding: EdgeInsets.fromLTRB(
                               context.spacing(16),
                               context.spacing(16),
@@ -167,11 +220,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 _DragProxy(animation: animation, child: child),
                             onReorderStart: (_) =>
                                 HapticFeedback.mediumImpact(),
-                            // Unlike the older onReorder, this callback
-                            // already accounts for the dragged item leaving
-                            // its slot — no off-by-one fix needed.
                             onReorderItem: (oldIndex, newIndex) {
-                              if (isSearching) return;
+                              if (!isCustomOrdered) return;
                               context.read<CardOverviewBloc>().add(
                                     ReorderCardsRequested(
                                       oldIndex: oldIndex,
@@ -183,7 +233,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             itemBuilder: (context, index) {
                               final card = visible[index];
                               return CardTile(
-                                // Reorder animations track items by key.
                                 key: ValueKey(card.id),
                                 card: card,
                                 isPaid: state.paidCardIds.contains(card.id),
@@ -198,7 +247,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => openAddCardScreen(context),
+        onPressed: () async {
+          await openAddCardScreen(context);
+          _loadFolders();
+        },
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Theme.of(context).colorScheme.onPrimary,
         elevation: 2,
@@ -208,80 +260,73 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ─── Header ───────────────────────────────────────────────────────────────────
+// ─── Section Header with Label & Filter Dropdown ─────────────────────────────
 
-class _Header extends StatelessWidget {
-  const _Header({required this.searchOpen, required this.onToggleSearch});
-  final bool searchOpen;
-  final VoidCallback onToggleSearch;
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.selectedFilter,
+    required this.count,
+    required this.folders,
+    required this.onFilterChanged,
+  });
 
-  String get _greeting {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+  final HomeCardFilter selectedFilter;
+  final int count;
+  final List<CardFolder> folders;
+  final ValueChanged<HomeCardFilter> onFilterChanged;
+
+  String get _label {
+    if (selectedFilter is AllCardsFilter) return 'ALL CARDS';
+    return selectedFilter.label.toUpperCase();
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _greeting.toUpperCase(),
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: scheme.secondary,
-                      letterSpacing: 1,
-                    ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    letterSpacing: 1,
+                  ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer,
+                borderRadius: BorderRadius.circular(10),
               ),
-              const SizedBox(height: 2),
-              Text('My cards', style: Theme.of(context).textTheme.displaySmall),
-            ],
-          ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  color: scheme.onPrimaryContainer,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
         ),
-        _CircleIconButton(
-          icon: searchOpen ? Icons.close : Icons.search,
-          onTap: onToggleSearch,
+        CardFilterDropdown(
+          selectedFilter: selectedFilter,
+          folders: folders,
+          onFilterChanged: onFilterChanged,
         ),
       ],
     );
   }
 }
 
-class _CircleIconButton extends StatelessWidget {
-  const _CircleIconButton({required this.icon, required this.onTap});
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    // A shade more tan than the page background, so the circle actually
-    // reads as a button rather than disappearing into the cream behind it.
-    return Material(
-      color: scheme.surfaceContainerHigh,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Icon(icon, size: 20, color: scheme.onSurface),
-        ),
-      ),
-    );
-  }
-}
-
 // ─── Drag proxy ───────────────────────────────────────────────────────────────
 
-/// How a card looks while it is being dragged: slightly lifted and enlarged,
-/// so it reads as "picked up" rather than glitched.
 class _DragProxy extends StatelessWidget {
   const _DragProxy({required this.animation, required this.child});
 
@@ -299,208 +344,6 @@ class _DragProxy extends StatelessWidget {
           child: child,
         );
       },
-    );
-  }
-}
-
-// ─── Search ───────────────────────────────────────────────────────────────────
-
-class _SearchField extends StatelessWidget {
-  const _SearchField({required this.controller, required this.onChanged});
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return TextField(
-      controller: controller,
-      autofocus: true,
-      onChanged: onChanged,
-      textInputAction: TextInputAction.search,
-      decoration: InputDecoration(
-        hintText: 'Search bank, name, or last 4 digits',
-        prefixIcon: Icon(Icons.search, size: 20, color: scheme.onSurfaceVariant),
-        isDense: true,
-      ),
-    );
-  }
-}
-
-class _NoMatches extends StatelessWidget {
-  const _NoMatches({required this.query});
-  final String query;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(context.spacing(28)),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.search_off_rounded,
-              size: context.spacing(40),
-              color: scheme.onSurfaceVariant,
-            ),
-            SizedBox(height: context.spacing(10)),
-            Text(
-              'No cards match "$query"',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Next-bill hero ───────────────────────────────────────────────────────────
-
-const _weekdayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const _monthNames = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-];
-
-/// The soonest unpaid bill, front and centre — the one thing on this screen
-/// worth acting on today.
-class _NextBillHero extends StatelessWidget {
-  const _NextBillHero({required this.cards, required this.paidCardIds});
-
-  final List<PaymentCard> cards;
-  final Set<String> paidCardIds;
-
-  ({PaymentCard card, DateTime date, int delta})? get _nextDue {
-    ({PaymentCard card, DateTime date, int delta})? soonest;
-    for (final c in cards) {
-      if (paidCardIds.contains(c.id)) continue;
-      final info = c.reminderInfo;
-      if (info == null) continue;
-      if (soonest == null || info.delta < soonest.delta) {
-        soonest = (card: c, date: info.date, delta: info.delta);
-      }
-    }
-    return soonest;
-  }
-
-  String _dateLabel(DateTime d) =>
-      '${_weekdayNames[d.weekday - 1]}, ${d.day} ${_monthNames[d.month - 1]}';
-
-  String _pillLabel(int delta) {
-    if (delta < 0) return delta == -1 ? 'OVERDUE BY 1 DAY' : 'OVERDUE';
-    return switch (delta) {
-      0 => 'DUE TODAY',
-      1 => 'NEXT BILL TOMORROW',
-      _ => 'NEXT BILL IN $delta DAYS',
-    };
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-    final next = _nextDue;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: next == null
-          ? Row(
-              children: [
-                Icon(Icons.check_circle_outline,
-                    color: scheme.onSecondaryContainer, size: 22),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'All caught up — no bills due right now.',
-                    style: text.titleSmall
-                        ?.copyWith(color: scheme.onSecondaryContainer),
-                  ),
-                ),
-              ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _pillLabel(next.delta),
-                  style: text.labelSmall?.copyWith(
-                    color: scheme.onSecondaryContainer.withValues(alpha: 0.7),
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _dateLabel(next.date),
-                  style: text.headlineSmall
-                      ?.copyWith(color: scheme.onSecondaryContainer),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    CardChip(card: next.card),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        '${next.card.displayTitle} · due on the '
-                        '${next.card.dueDayLabel}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: text.bodySmall?.copyWith(
-                          color: scheme.onSecondaryContainer,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-    );
-  }
-}
-
-class _AllCardsLabel extends StatelessWidget {
-  const _AllCardsLabel({required this.count});
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        Text(
-          'ALL CARDS',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: scheme.onSurfaceVariant,
-                letterSpacing: 1,
-              ),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-          decoration: BoxDecoration(
-            color: scheme.primaryContainer,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Text(
-            '$count',
-            style: TextStyle(
-              color: scheme.onPrimaryContainer,
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

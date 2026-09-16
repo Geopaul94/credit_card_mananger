@@ -165,18 +165,9 @@ The three SHA-1s for `com.geo.credit_cards`:
 
 | SHA-1 | Key | Registered? |
 |---|---|---|
-| `B6:1E:BB:21:93:C8:1E:7A:90:72:36:6A:15:3F:71:91:33:4C:14:EF` | debug (`~/.android/debug.keystore`) | ✅ was already there |
-| `C9:37:BF:12:B0:C8:8A:F2:B8:C7:01:09:7C:D0:B7:73:D9:E0:4F:B8` | upload (`C:/Users/geopa/cardvault-upload.jks`, alias `upload`) | ✅ added this session |
-| *(from Play Console)* | **Play app signing** | ❌ **still missing — needed for Play-installed builds** |
-
-**The remaining step is server-side only and needs no rebuild or upload.** Add
-the Play app-signing SHA-1 in Firebase and the *already-live 1.0.1 build* starts
-working for users. Path (Google moved it — the old *Test and release → Setup →
-App integrity* page now just redirects): Play Console → Card Vault →
-**Protected with Play** → **Automatic protection** row (*1 of 1 service active*)
-→ **Manage** → Play app signing → copy the SHA-1 under **App signing key
-certificate** (not *Upload key certificate*) → Firebase → Project settings →
-app `credit_cards` → **Add fingerprint**.
+| `B6:1E:BB:21:93:C8:1E:7A:90:72:36:6A:15:3F:71:91:33:4C:14:EF` | debug (`~/.android/debug.keystore`) | ✅ Registered |
+| `C9:37:BF:12:B0:C8:8A:F2:B8:C7:01:09:7C:D0:B7:73:D9:E0:4F:B8` | upload (`C:/Users/geopa/cardvault-upload.jks`, alias `upload`) | ✅ Registered |
+| `62:D8:EF:18:F5:08:38:F5:9B:92:FE:1A:BA:C3:9C:56:93:E7:8B:58` | Play app signing (`Protected with Play` -> `App signing`) | ✅ Registered |
 
 Considered and rejected: moving Card Vault to its own Cloud project. The worry
 was the consent screen showing "debt tracker" to a credit-card app's users —
